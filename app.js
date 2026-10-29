@@ -9,7 +9,6 @@ let searchTimeout;
 let draggingNodeId = null;
 
 const EXPORT_SCALE = 1.5;
-// Updated to V1_2
 const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2'); 
 
 if (savedData) {
@@ -669,7 +668,8 @@ function openAddModal() {
     parentSelect.innerHTML = '<option value="">पिता छान्नुहोस्...</option>';
     parentSelect.innerHTML += '<option value="null">-- मूल पुर्खा (Root) --</option>';
     
-    familyData.forEach(d => {
+    // FILTERED: Only show Males as parent options
+    familyData.filter(d => d.gender === 'M').forEach(d => {
         const opt = document.createElement('option'); opt.value = d.id; opt.innerText = d.name || "नाम नखुलेको";
         parentSelect.appendChild(opt);
     });
@@ -748,7 +748,9 @@ function openEditModal(id) {
     
     const parentSelect = document.getElementById('edit-parent');
     parentSelect.innerHTML = '<option value="null">-- मूल पुर्खा (Root) --</option>';
-    familyData.forEach(d => {
+    
+    // FILTERED: Only show Males as parent options
+    familyData.filter(d => d.gender === 'M').forEach(d => {
         if (d.id !== person.id && !isDescendant(person.id, d.id)) {
             const opt = document.createElement('option'); opt.value = d.id; opt.innerText = d.name || "नाम नखुलेको";
             parentSelect.appendChild(opt);
