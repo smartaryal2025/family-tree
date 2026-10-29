@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ne">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>अर्याल वंशावली - V1.2</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <h1>अर्याल वंशावली</h1>
+        <p>मूल पुर्खा: -</p>
+    </header>
+
+    <div class="toolbar-wrapper" data-html2canvas-ignore>
+        <div class="header-panel">
+            
+            <div class="header-group" style="flex-grow: 1;">
+                <div class="search-container">
+                    <input type="text" id="searchInput" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()">
+                    <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
+                    <div class="suggestions-box" id="searchSuggestions"></div>
+                </div>
+            </div>
+
+            <div class="header-group">
+                <button class="header-btn primary" onclick="openAddModal()">+ नयाँ सदस्य</button>
+            </div>
+
+            <div class="header-group">
+                <button class="header-btn" onclick="expandAll()">सबै देखाउने</button>
+                <button class="header-btn" onclick="collapseAll()">सबै लुकाउने</button>
+                <label class="toggle-label"><input type="checkbox" id="showDaughtersToggle" checked onchange="renderTree()"> छोरी</label>
+                <label class="toggle-label"><input type="checkbox" id="staggerToggle" onchange="handleLayoutToggle()"> ठाडो</label>
+            </div>
+
+            <div class="header-group">
+                <div class="dropdown">
+                    <button class="header-btn">डाटा ▾</button>
+                    <div class="dropdown-content">
+                        <button onclick="exportJSON()">💾 सेभ JSON</button>
+                        <button onclick="document.getElementById('importFile').click()">📂 लोड JSON</button>
+                        <button onclick="exportDataJS()">💾 सेभ JS</button>
+                        <button onclick="factoryReset()" style="color: #e74c3c;">⚠️ रिसेट</button>
+                    </div>
+                </div>
+                <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importJSON(event)">
+                <button class="header-btn export" onclick="showExportOptions()">प्रिन्ट / डाउनलोड</button>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="export-area">
+        <h1 style="display:none; color:#183153; margin: 20px 0;">अर्याल वंशावली</h1>
+        <div id="tree-viewport">
+            <div id="zoom-layer">
+                <svg id="lines-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+                <div id="nodes-container"></div>
+            </div>
+            <div class="floating-nav" data-html2canvas-ignore>
+                <button onclick="zoomCamera(1.3)" title="Zoom In">➕</button>
+                <button onclick="zoomCamera(0.7)" title="Zoom Out">➖</button>
+                <button onclick="centerCamera()" title="Reset View">⌂</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="print-container"></div>
+    <div id="details-panel" class="details-panel"></div>
+
+    <div id="drag-ghost-element" class="drag-ghost">सारिँदै छ...</div>
+
+    <div id="export-modal" class="modal-overlay">
+        <div class="modal-content" style="text-align: center;">
+            <button class="close-modal-btn" onclick="closeExportModal()">✕</button>
+            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px;">Export Preview</h2>
+            <div id="export-loading" style="padding: 20px; font-weight: bold; color: #3498db;">Processing Preview...</div>
+            <div id="export-controls" style="display: none; margin-top: 10px; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                <div>
+                    <label style="font-weight: bold; color: #2c3e50;">Page Orientation: </label>
+                    <select id="print-orientation" onchange="generatePaginationPreview()" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                        <option value="landscape">Landscape (Wide)</option>
+                        <option value="portrait">Portrait (Tall)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight: bold; color: #2c3e50;">Print Size: <span id="print-size-val">100</span>%</label>
+                    <input type="range" id="print-scale-slider" min="50" max="150" value="100" oninput="document.getElementById('print-size-val').innerText = this.value" onchange="generatePaginationPreview()" style="vertical-align: middle;">
+                </div>
+            </div>
+            <div id="multi-page-preview"></div>
+            <div id="export-buttons-container" style="display: none; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 15px; width: 100%;">
+                <button class="export-btn" style="background: #27ae60;" onclick="handleDownloadSingle('png')">Download PNG</button>
+                <button class="export-btn" style="background: #8e44ad;" onclick="handleDownloadSingle('pdf')">Download PDF</button>
+                <button class="export-btn" style="background: #34495e;" onclick="executeNativePrint()">Print</button>
+                <button class="export-btn" style="background: #2c3e50;" onclick="downloadMultiPagePDF()">Download Multi-Page A4 PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-modal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="close-modal-btn" onclick="closeAddModal()">✕</button>
+            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px;">नयाँ सदस्य थप्नुहोस्</h2>
+            <div style="display: flex; gap: 10px;">
+                <div class="edit-form-group" style="flex-grow: 1;">
+                    <label>नाम:</label>
+                    <input type="text" id="add-name">
+                </div>
+                <div class="edit-form-group">
+                    <label>लिङ्ग:</label>
+                    <select id="add-gender" onchange="updateAddSpouseLabel()">
+                        <option value="M">पुरुष</option>
+                        <option value="F">महिला</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <div class="edit-form-group" style="flex-grow: 1;">
+                    <label>जन्म मिति (वैकल्पिक):</label>
+                    <input type="text" id="add-birth">
+                </div>
+                <div class="edit-form-group" style="flex-grow: 1;">
+                    <label>मृत्यु मिति (वैकल्पिक):</label>
+                    <input type="text" id="add-death">
+                </div>
+            </div>
+            <div class="edit-form-group">
+                <label>क्रम:</label>
+                <select id="add-hierarchy">
+                    <option value="99">छैन</option>
+                    <option value="1">जेठो / जेठी</option>
+                    <option value="2">माइलो / माइली</option>
+                    <option value="3">साँहिलो / साँहिली</option>
+                    <option value="4">काइँलो / काइँली</option>
+                    <option value="5">ठाइँलो / ठाइँली</option>
+                    <option value="6">कान्छो / कान्छी (Last)</option>
+                </select>
+            </div>
+            <div class="edit-form-group">
+                <label>पिता:</label>
+                <select id="add-parent" onchange="updateAddMotherDropdown(this.value)"></select>
+            </div>
+            <div class="edit-form-group">
+                <label>माता (वैकल्पिक):</label>
+                <select id="add-mother"><option value="">माता छान्नुहोस्...</option></select>
+            </div>
+            <div class="edit-form-group">
+                <label id="add-spouse-label">पत्नी (वैकल्पिक):</label>
+                <div class="spouse-list" id="add-spouse-list"></div>
+                <div style="display: flex; margin-top: 5px;">
+                    <input type="text" id="new-add-spouse-input" placeholder="नाम..." style="flex-grow: 1; padding: 6px;">
+                    <button type="button" onclick="addSpouseToAdd()" style="margin-left: 5px; background: #27ae60; color: white; border: none; border-radius: 4px; padding: 0 15px; cursor: pointer;">थप्नुहोस्</button>
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+                <button onclick="saveNewNode()" style="background: #2980b9; color: white; padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">सेभ गर्नुहोस्</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-modal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="close-modal-btn" onclick="closeEditModal()">✕</button>
+            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px;">विवरण सम्पादन</h2>
+            <input type="hidden" id="edit-id">
+            <div style="display: flex; gap: 10px;">
+                <div class="edit-form-group" style="flex-grow: 1;">
+                    <label>नाम:</label>
+                    <input type="text" id="edit-name">
+                </div>
+                <div class="edit-form-group">
+                    <label>लिङ्ग:</label>
+                    <select id="edit-gender" onchange="updateEditSpouseLabel()">
+                        <option value="M">पुरुष</option>
+                        <option value="F">महिला</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <div class="edit-form-group" style="flex-grow: 1;">
+                    <label>जन्म मिति (वैकल्पिक):</label>
+                    <input type="text" id="edit-birth">
+                </div>
+                <div class="edit-form-group" style="flex-grow: 1;">
+                    <label>मृत्यु मिति (वैकल्पिक):</label>
+                    <input type="text" id="edit-death">
+                </div>
+            </div>
+            <div class="edit-form-group">
+                <label>क्रम:</label>
+                <select id="edit-hierarchy">
+                    <option value="99">छैन</option>
+                    <option value="1">जेठो / जेठी</option>
+                    <option value="2">माइलो / माइली</option>
+                    <option value="3">साँहिलो / साँहिली</option>
+                    <option value="4">काइँलो / काइँली</option>
+                    <option value="5">ठाइँलो / ठाइँली</option>
+                    <option value="6">कान्छो / कान्छी (Last)</option>
+                </select>
+            </div>
+            <div class="edit-form-group">
+                <label>पिता:</label>
+                <select id="edit-parent" onchange="updateEditMotherDropdown(this.value)"></select>
+            </div>
+            <div class="edit-form-group">
+                <label>माता (वैकल्पिक):</label>
+                <select id="edit-mother"><option value="">माता छान्नुहोस्...</option></select>
+            </div>
+            <div class="edit-form-group">
+                <label id="edit-spouse-label">पत्नी (वैकल्पिक):</label>
+                <div class="spouse-list" id="edit-spouse-list"></div>
+                <div style="display: flex; margin-top: 5px;">
+                    <input type="text" id="new-spouse-input" placeholder="नाम..." style="flex-grow: 1; padding: 6px;">
+                    <button type="button" onclick="addSpouseToEdit()" style="margin-left: 5px; background: #27ae60; color: white; border: none; border-radius: 4px; padding: 0 15px; cursor: pointer;">थप्नुहोस्</button>
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+                <button onclick="saveEdit()" style="background: #2980b9; color: white; padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">सेभ गर्नुहोस्</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
