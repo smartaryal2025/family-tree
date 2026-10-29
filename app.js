@@ -624,7 +624,6 @@ function renderTree(isInitialLoadOrReset = false) {
         .attr("class", d => {
             let cls = "node-box root";
             if(d.data.gender === 'F') cls += " female";
-            if(collapsedNodes.has(d.data.id)) cls += " collapsed"; 
             return cls;
         })
         .style("opacity", 1)
@@ -636,11 +635,14 @@ function renderTree(isInitialLoadOrReset = false) {
         .attr("class", d => {
             let cls = "node-box";
             if(d.data.gender === 'F') cls += " female";
-            if(collapsedNodes.has(d.data.id)) cls += " collapsed"; 
             return cls;
         })
         .transition().duration(animDuration)
-        .style("opacity", d => collapsedNodes.has(d.data.id) ? 0.85 : 1)
+        .style("opacity", d => {
+            if(collapsedNodes.has(d.data.id)) return 0.85;
+            if(d.data.gender === 'F') return 0.85; 
+            return 1;
+        })
         .style("transform", "scale(1)")
         .style("left", d => `${d.x - (d.data.gender === 'F' ? 85 : 130) / 2}px`)
         .style("top", d => `${d.y}px`);
@@ -668,7 +670,6 @@ function openAddModal() {
     parentSelect.innerHTML = '<option value="">पिता छान्नुहोस्...</option>';
     parentSelect.innerHTML += '<option value="null">-- मूल पुर्खा (Root) --</option>';
     
-    // FILTERED: Only show Males as parent options
     familyData.filter(d => d.gender === 'M').forEach(d => {
         const opt = document.createElement('option'); opt.value = d.id; opt.innerText = d.name || "नाम नखुलेको";
         parentSelect.appendChild(opt);
@@ -749,7 +750,6 @@ function openEditModal(id) {
     const parentSelect = document.getElementById('edit-parent');
     parentSelect.innerHTML = '<option value="null">-- मूल पुर्खा (Root) --</option>';
     
-    // FILTERED: Only show Males as parent options
     familyData.filter(d => d.gender === 'M').forEach(d => {
         if (d.id !== person.id && !isDescendant(person.id, d.id)) {
             const opt = document.createElement('option'); opt.value = d.id; opt.innerText = d.name || "नाम नखुलेको";
@@ -989,7 +989,7 @@ async function createExportCanvas(scaleValue) {
         let currentLeft = parseFloat(box.style.left);
         box.style.left = `${currentLeft + shiftX}px`; 
         box.style.background = '#ffffff';
-        if(box.classList.contains('root')) box.style.background = '#fff8e8';
+        if(box.classList.contains('root')) box.style.background = '#f0f9ff';
         if(box.classList.contains('female')) box.style.background = '#fdf3e8'; 
     });
 
