@@ -386,17 +386,14 @@ header p { margin: 0; color: #d5e2f5; font-size: 13px; }
 
 /* SMART MOBILE WRAPPING */
 @media (max-width: 768px) {
-    .header-panel { flex-direction: column; align-items: stretch; gap: 10px;}
-    .search-container { max-width: 100%; flex: auto; }
-    .header-buttons-right { justify-content: center; }
-    
-    /* Allow buttons to size automatically on mobile for best fit */
-    .header-buttons-right > .header-btn, 
-    .header-buttons-right > .toggle-label, 
-    .header-buttons-right > .dropdown {
-        flex: 1 1 calc(33% - 8px); 
-        width: auto; 
+    .header-panel { padding: 8px !important; gap: 8px !important; flex-direction: column !important; }
+    .header-buttons-right { 
+        flex-wrap: nowrap !important; /* बटन नटुक्रिने */
+        overflow-x: auto; /* दायाँ-बायाँ सार्न मिल्ने */
+        padding-bottom: 5px; 
+        justify-content: flex-start !important; 
     }
-    
-    .export-btn { flex: 1 1 calc(50% - 8px); } 
+    .header-buttons-right::-webkit-scrollbar { height: 4px; }
+    .header-buttons-right::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .header-btn, .toggle-label { flex: 0 0 auto !important; }
 }

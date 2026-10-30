@@ -3,6 +3,7 @@ const SUPABASE_URL = 'https://dqvwyprvgglmwdbernpq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxdnd5cHJ2Z2dsbXdkYmVybnBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNDg1ODUsImV4cCI6MjEwODkyNDU4NX0.E79qy5EeQsYAwkrt8WSnQvABxo4L8T_ZYbFnzvT4law';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// --- Global Variables ---
 let familyData = [];
 let nextId = 70;
 let collapsedNodes = new Set();
@@ -14,14 +15,165 @@ let searchTimeout;
 let draggingNodeId = null;
 const EXPORT_SCALE = 1.5;
 
-// Database बाट डाटा तान्ने नयाँ फङ्सन
+let currentUser = null;
+let isAdmin = false;
+const ADMIN_EMAIL = 'support@kishoraryal.com.np';
+let pendingProposals = [];
+
+// --- Authentication Logic ---
+supabaseClient.auth.getSession().then(({ data: { session } }) => {
+    updateAuthState(session?.user);
+});
+
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+    updateAuthState(session?.user);
+});
+
+function updateAuthState(user) {
+    currentUser = user;
+    isAdmin = user && user.email === ADMIN_EMAIL;
+    const authBtn = document.getElementById('authBtn');
+    const emailSpan = document.getElementById('loggedInUserEmail');
+    const notifBell = document.getElementById('notification-bell'); // नयाँ
+    
+    if (user) {
+        notifBell.style.display = 'inline-block'; // लगइन हुँदा घण्टी देखाउने
+        fetchNotifications(); // सूचनाहरू तान्ने
+        
+        authBtn.innerText = isAdmin ? '🛡️ एडमिन प्यानल' : 'लगआउट';
+        authBtn.onclick = () => { isAdmin ? openAdminModal() : (confirm('लगआउट गर्न चाहनुहुन्छ?') && handleLogout()); };
+        authBtn.style.background = isAdmin ? '#f39c12' : '#e74c3c';
+        authBtn.style.color = 'white';
+        
+        let dName = user.user_metadata?.full_name || user.email.split('@')[0];
+        emailSpan.innerHTML = `👤 <a href="#" onclick="openProfileModal(); return false;" style="color:#183153; text-decoration:underline;">${dName}</a>`;
+        emailSpan.style.display = 'inline-block';
+    } else {
+        notifBell.style.display = 'none'; // लगआउट हुँदा घण्टी लुकाउने
+        authBtn.innerText = 'लगइन / दर्ता';
+        authBtn.onclick = openAuthModal;
+        authBtn.style.background = '#f4f6fa';
+        authBtn.style.color = '#2c3e50';
+        emailSpan.innerHTML = '';
+        emailSpan.style.display = 'none';
+    }
+}
+
+function openAuthModal() {
+    showLoginOnly();
+    document.getElementById('auth-email').value = '';
+    document.getElementById('auth-password').value = '';
+    document.getElementById('auth-message').innerText = '';
+    document.getElementById('auth-modal').style.display = 'block';
+}
+
+function showLoginOnly() {
+    document.getElementById('signup-fields').style.display = 'none';
+    document.getElementById('login-btn-main').style.display = 'block';
+    document.getElementById('signup-btn-main').innerText = 'नयाँ दर्ता (Sign Up)';
+    document.getElementById('back-to-login-btn').style.display = 'none';
+    document.getElementById('auth-message').innerText = '';
+}
+
+function submitAuthForm(event) {
+    event.preventDefault();
+    const isSignup = document.getElementById('signup-fields').style.display === 'block';
+    if (isSignup) handleSignup();
+    else handleLogin();
+}
+
+async function handleSignup() {
+    const signupFields = document.getElementById('signup-fields');
+    const msg = document.getElementById('auth-message');
+    
+    if (signupFields.style.display === 'none') {
+        signupFields.style.display = 'block';
+        document.getElementById('login-btn-main').style.display = 'none';
+        document.getElementById('signup-btn-main').innerText = 'पेस गर्नुहोस् (Submit)';
+        document.getElementById('back-to-login-btn').style.display = 'block';
+        return msg.innerText = 'कृपया दर्ता गर्न नाम र मोबाइल नम्बर पनि भर्नुहोस्।';
+    }
+
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const name = document.getElementById('auth-name').value.trim();
+    const phone = document.getElementById('auth-phone').value.trim();
+    
+    msg.style.color = '#e74c3c';
+    if (!email || password.length < 6 || !name || !phone) return msg.innerText = 'सबै विवरणहरू अनिवार्य रूपमा भर्नुहोस्।';
+    
+    msg.innerText = 'दर्ता हुँदैछ...';
+    const { error } = await supabaseClient.auth.signUp({ 
+        email, password, options: { data: { full_name: name, phone: phone } }
+    });
+    
+    if (error) { 
+        msg.innerText = error.message; 
+    } else {
+        msg.style.color = '#27ae60'; msg.innerText = 'दर्ता सफल! अब लगइन गर्नुहोस्।';
+        setTimeout(showLoginOnly, 1500);
+    }
+}
+
+async function handleLogin() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const msg = document.getElementById('auth-message');
+    
+    msg.style.color = '#e74c3c';
+    msg.innerText = 'लगइन हुँदैछ...';
+    
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+        msg.innerText = "लगइन असफल: इमेल वा पासवर्ड मिलेन।";
+    } else {
+        closeAuthModal();
+    }
+}
+
+async function handleLogout() {
+    try {
+        await supabaseClient.auth.signOut();
+    } catch (error) {
+        console.error("लगआउट गर्दा समस्या भयो:", error);
+    }
+    closeAdminModal();
+    closeAuthModal();
+    window.location.reload();
+}
+
+function openProfileModal() {
+    if(!currentUser) return;
+    document.getElementById('prof-name').value = currentUser.user_metadata?.full_name || '';
+    document.getElementById('prof-phone').value = currentUser.user_metadata?.phone || '';
+    document.getElementById('prof-message').innerText = '';
+    document.getElementById('profile-modal').style.display = 'block';
+}
+
+async function saveProfile() {
+    const name = document.getElementById('prof-name').value.trim();
+    const phone = document.getElementById('prof-phone').value.trim();
+    const msg = document.getElementById('prof-message');
+    msg.style.color = '#3498db'; msg.innerText = 'सेभ हुँदैछ...';
+    
+    const { data, error } = await supabaseClient.auth.updateUser({ data: { full_name: name, phone: phone } });
+    if(error) { 
+        msg.style.color = '#e74c3c'; msg.innerText = error.message; 
+    } else { 
+        msg.style.color = '#27ae60'; msg.innerText = 'प्रोफाइल अपडेट भयो!';
+        currentUser = data.user;
+        updateAuthState(currentUser);
+        setTimeout(closeProfileModal, 1000);
+    }
+}
+
+// --- Data Fetching ---
 async function loadDataFromSupabase() {
     try {
         const { data, error } = await supabaseClient.from('members').select('*');
         if (error) throw error;
         
         if (data && data.length > 0) {
-            // Database को snake_case लाई हाम्रो JS को camelCase मा बदल्ने
             familyData = data.map(d => ({
                 id: d.id,
                 name: d.name || "",
@@ -34,24 +186,345 @@ async function loadDataFromSupabase() {
                 deathDate: d.death_date
             }));
             nextId = Math.max(...familyData.map(d => d.id), 0) + 1;
-            // अफलाइन ब्याकअपको लागि लोकलस्टोरेजमा पनि सेभ गर्ने
             localStorage.setItem('aryalFamilyTreeDataV1_2', JSON.stringify(familyData));
         } else {
-            // यदि डाटाबेसमा केही भेटिएन भने अफलाइन डाटा प्रयोग गर्ने
             const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2');
             if (savedData) familyData = JSON.parse(savedData);
         }
     } catch (err) {
-        console.error("Supabase Error Details:", err); // <-- यो नयाँ लाइन थप्नुहोस्
+        console.error("Supabase Error Details:", err);
         const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2');
         if (savedData) familyData = JSON.parse(savedData);
     }
     renderTree(true);
 }
 
-// पुरानो saveTree फङ्सनलाई पनि अहिलेलाई लोकलस्टोरेजमै मात्र राख्ने (अर्को स्टेपमा हामी यसलाई Database मा सेभ हुने बनाउँछौँ)
-function saveTree() { localStorage.setItem('aryalFamilyTreeDataV1_2', JSON.stringify(familyData)); }
+// --- Admin Workflow & Save Logic ---
+async function saveNewNode() {
+    if (!currentUser) return alert("कृपया नयाँ सदस्य थप्न सुरुमा लगइन गर्नुहोस्।");
+    
+    const name = document.getElementById('add-name').value.trim();
+    const birthDate = document.getElementById('add-birth').value.trim();
+    const deathDate = document.getElementById('add-death').value.trim();
+    const parentIdVal = document.getElementById('add-parent').value;
+    const gender = document.getElementById('add-gender').value;
+    const motherName = document.getElementById('add-mother').value;
+    const hierarchy = parseInt(document.getElementById('add-hierarchy').value);
+    
+    if (parentIdVal === "") return alert("कृपया पिता छान्नुहोस्।");
+    const parentId = parentIdVal === "null" ? null : parseInt(parentIdVal);
+    
+    let newNode = { 
+        id: nextId++, 
+        name: name, 
+        parent_id: parentId, 
+        gender: gender, 
+        spouses: [...tempAddSpouses], 
+        hierarchy_order: hierarchy 
+    };
+    if(motherName !== "") newNode.mother_name = motherName;
+    if(birthDate !== "") newNode.birth_date = birthDate;
+    if(deathDate !== "") newNode.death_date = deathDate;
+    
+    if (isAdmin) {
+        const { error } = await supabaseClient.from('members').insert([newNode]);
+        if (error) return alert("त्रुटि: " + error.message);
+        
+        alert("नयाँ सदस्य सफलतापूर्वक थपियो!");
+        closeAddModal();
+        loadDataFromSupabase();
+    } else {
+        let proposalData = { ...newNode };
+        proposalData._submitter_name = currentUser?.user_metadata?.full_name || '';
+        proposalData._submitter_phone = currentUser?.user_metadata?.phone || '';
+        proposalData._submitter_email = currentUser?.email || '';
 
+        const { error } = await supabaseClient.from('member_proposals').insert([{
+            change_type: 'CREATE',
+            proposed_data: proposalData,
+            submitted_by: currentUser.id,
+            status: 'PENDING'
+        }]);
+        if (error) return alert("प्रस्ताव पठाउन त्रुटि: " + error.message);
+        
+        alert("तपाईंको प्रस्ताव एडमिनलाई पठाइयो। स्वीकृत भएपछि मात्र वंशावलीमा देखिनेछ।");
+        closeAddModal();
+    }
+}
+
+async function saveEdit() {
+    if (!currentUser) return alert("कृपया सम्पादन गर्न सुरुमा लगइन गर्नुहोस्।");
+    
+    const id = parseInt(document.getElementById('edit-id').value);
+    const name = document.getElementById('edit-name').value.trim();
+    const birthDate = document.getElementById('edit-birth').value.trim();
+    const deathDate = document.getElementById('edit-death').value.trim();
+    const gender = document.getElementById('edit-gender').value;
+    const hierarchy = parseInt(document.getElementById('edit-hierarchy').value);
+    const parentVal = document.getElementById('edit-parent').value;
+    const parentId = parentVal === "null" ? null : parseInt(parentVal);
+    const motherVal = document.getElementById('edit-mother').value;
+    
+    let updateData = {
+        name: name,
+        gender: gender,
+        hierarchy_order: hierarchy,
+        parent_id: parentId,
+        spouses: [...tempEditSpouses],
+        mother_name: motherVal !== "" ? motherVal : null,
+        birth_date: birthDate !== "" ? birthDate : null,
+        death_date: deathDate !== "" ? deathDate : null
+    };
+
+    if (isAdmin) {
+        const { error } = await supabaseClient.from('members').update(updateData).eq('id', id);
+        if (error) return alert("त्रुटि: " + error.message);
+        alert("विवरण सफलतापूर्वक सम्पादन भयो!");
+        closeEditModal();
+        loadDataFromSupabase();
+    } else {
+        updateData.id = id;
+        updateData._submitter_name = currentUser?.user_metadata?.full_name || '';
+        updateData._submitter_phone = currentUser?.user_metadata?.phone || '';
+        updateData._submitter_email = currentUser?.email || '';
+
+        const { error } = await supabaseClient.from('member_proposals').insert([{
+            change_type: 'UPDATE',
+            target_member_id: id,
+            proposed_data: updateData,
+            submitted_by: currentUser.id,
+            status: 'PENDING'
+        }]);
+        if (error) return alert("त्रुटि: " + error.message);
+        alert("तपाईंको सम्पादन प्रस्ताव एडमिनलाई पठाइयो।");
+        closeEditModal();
+    }
+}
+
+async function removeNode(id) {
+    if (!currentUser) return alert("कृपया हटाउन सुरुमा लगइन गर्नुहोस्।");
+    if(confirm("के तपाईं यो व्यक्ति र यसका सबै सन्तानहरूलाई सधैंको लागि हटाउन चाहनुहुन्छ?\n(चेतावनी: यो कार्य पछि फर्काउन सकिँदैन!)")) {
+        let toRemove = new Set([id]);
+        let changed = true;
+        while (changed) {
+            changed = false;
+            familyData.forEach(d => {
+                if (toRemove.has(d.parentId) && !toRemove.has(d.id)) { toRemove.add(d.id); changed = true; }
+            });
+        }
+        
+        if (isAdmin) {
+            const idsToDelete = Array.from(toRemove);
+            const { error } = await supabaseClient.from('members').delete().in('id', idsToDelete);
+            if (error) return alert("हटाउन त्रुटि: " + error.message);
+            alert("सदस्य र सन्तानहरू सफलतापूर्वक हटाइए!");
+            loadDataFromSupabase();
+        } else {
+            let pData = { id: id, name: familyData.find(d=>d.id===id)?.name };
+            pData._submitter_name = currentUser?.user_metadata?.full_name || '';
+            pData._submitter_phone = currentUser?.user_metadata?.phone || '';
+            pData._submitter_email = currentUser?.email || '';
+
+            const { error } = await supabaseClient.from('member_proposals').insert([{
+                change_type: 'DELETE',
+                target_member_id: id,
+                proposed_data: pData,
+                submitted_by: currentUser.id,
+                status: 'PENDING'
+            }]);
+            if (error) return alert("प्रस्ताव पठाउन त्रुटि: " + error.message);
+            alert("हटाउने प्रस्ताव एडमिनलाई पठाइयो।");
+        }
+    }
+}
+
+// --- Notifications Logic ---
+async function fetchNotifications() {
+    if (!currentUser) return;
+    const { data, error } = await supabaseClient.from('notifications')
+        .select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+    
+    if (error) return console.error(error);
+    
+    const unread = data.filter(n => !n.is_read).length;
+    const badge = document.getElementById('notif-badge');
+    if (unread > 0) {
+        badge.innerText = unread;
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+    }
+    window.userNotifications = data; 
+}
+
+async function openNotifications() {
+    document.getElementById('notif-modal').style.display = 'block';
+    const list = document.getElementById('notif-list');
+    const notifs = window.userNotifications || [];
+    
+    if (notifs.length === 0) return list.innerHTML = '<p style="text-align:center; color:#7f8c8d;">कुनै नयाँ सूचना छैन।</p>';
+    
+    list.innerHTML = notifs.map(n => `
+        <div style="padding:10px; border-bottom:1px solid #eee; background:${n.is_read ? '#fff' : '#f0f9ff'};">
+            <p style="margin:0 0 5px 0; font-size:13px; color:#2c3e50;">${n.message}</p>
+        </div>
+    `).join('');
+    
+    // हेरिसकेपछि सबैलाई 'Read' (पढिएको) बनाउने
+    const unreadIds = notifs.filter(n => !n.is_read).map(n => n.id);
+    if (unreadIds.length > 0) {
+        await supabaseClient.from('notifications').update({ is_read: true }).in('id', unreadIds);
+        fetchNotifications(); 
+    }
+}
+function closeNotifications() { document.getElementById('notif-modal').style.display = 'none'; }
+
+async function openAdminModal() {
+    document.getElementById('admin-modal').style.display = 'block';
+    const list = document.getElementById('proposals-list');
+    list.innerHTML = 'लोड हुँदैछ...';
+    
+    const { data, error } = await supabaseClient.from('member_proposals').select('*').eq('status', 'PENDING');
+    if (error) return list.innerHTML = 'त्रुटि: ' + error.message;
+    
+    pendingProposals = data || [];
+    
+    if (pendingProposals.length === 0) {
+        list.innerHTML = `
+            <p style="text-align:center; color:#7f8c8d; padding: 20px 0;">कुनै नयाँ प्रस्ताव छैन।</p>
+            <button class="header-btn" onclick="handleLogout()" style="width:100%; margin-top:10px; background:#e74c3c; color:white;">लगआउट (Logout)</button>
+        `;
+        return;
+    }
+    
+    let html = '';
+    pendingProposals.forEach(p => {
+        let d = p.proposed_data;
+        let action = p.change_type === 'CREATE' ? 'नयाँ थप्ने' : (p.change_type === 'UPDATE' ? 'सम्पादन गर्ने' : 'हटाउने');
+        let color = p.change_type === 'DELETE' ? '#e74c3c' : '#27ae60';
+        
+        let senderName = d._submitter_name || 'अज्ञात';
+        let senderPhone = d._submitter_phone ? ` (📞 ${d._submitter_phone})` : '';
+        let senderEmail = d._submitter_email ? ` [${d._submitter_email}]` : '';
+        
+        html += `<div style="border:1px solid #cbd5e1; padding:12px; margin-bottom:10px; border-radius:6px; background:#f8fafc; font-size:13px;">
+            <div style="margin-bottom: 5px; color:${color};"><strong>प्रस्ताव:</strong> ${action}</div>
+            <div style="margin-bottom: 5px;"><strong>सदस्यको नाम:</strong> ${d.name || '(नाम नखुलेको)'}</div>
+            <div style="margin-bottom: 10px; color:#7f8c8d; font-size: 12px;"><strong>पठाउने:</strong> 👤 ${senderName}${senderPhone}${senderEmail}</div>
+            <div style="display:flex; gap:10px;">
+                <button class="header-btn" style="flex:1; background:#27ae60; color:white;" onclick="approveProposal(${p.id})">स्वीकृत ✔️</button>
+                <button class="header-btn" style="flex:1; background:#e74c3c; color:white;" onclick="rejectProposal(${p.id})">अस्वीकृत ✕</button>
+            </div>
+        </div>`;
+    });
+    list.innerHTML = html;
+}
+
+async function approveProposal(proposalId) {
+    const proposal = pendingProposals.find(p => p.id === proposalId);
+    if (!proposal) return alert("प्रस्ताव भेटिएन!");
+    
+    const propData = { ...proposal.proposed_data };
+    delete propData._submitter_name;
+    delete propData._submitter_phone;
+    delete propData._submitter_email;
+    
+    try {
+        if (proposal.change_type === 'CREATE') {
+            const { error } = await supabaseClient.from('members').insert([propData]);
+            if (error) throw error;
+        } else if (proposal.change_type === 'UPDATE') {
+            const { error } = await supabaseClient.from('members').update(propData).eq('id', proposal.target_member_id);
+            if (error) throw error;
+        } else if (proposal.change_type === 'DELETE') {
+            const { error } = await supabaseClient.from('members').delete().eq('id', proposal.target_member_id);
+            if (error) throw error;
+        }
+        
+        const { error: statusErr } = await supabaseClient.from('member_proposals').update({ status: 'APPROVED' }).eq('id', proposalId);
+        if (statusErr) throw statusErr;
+        
+        // --- नयाँ: सूचना पठाउने ---
+        let actionTxt = proposal.change_type === 'CREATE' ? 'नयाँ थप्ने' : (proposal.change_type === 'UPDATE' ? 'सम्पादन गर्ने' : 'हटाउने');
+        let msg = `तपाईंको प्रस्ताव: ${actionTxt} (सदस्य: ${propData.name || 'नाम नखुलेको'}) स्वीकृत भयो।`;
+        await supabaseClient.from('notifications').insert([{ user_id: proposal.submitted_by, message: msg }]);
+        
+        alert("प्रस्ताव स्वीकृत भयो! रूख अपडेट हुँदैछ...");
+        openAdminModal();
+        loadDataFromSupabase();
+    } catch (err) {
+        alert("स्वीकृत गर्दा त्रुटि: " + err.message);
+    }
+}
+
+async function rejectProposal(proposalId) {
+    if(!confirm("के तपाईं यो प्रस्ताव अस्वीकृत गर्न पक्का हुनुहुन्छ?")) return;
+    const proposal = pendingProposals.find(p => p.id === proposalId);
+    
+    const { error } = await supabaseClient.from('member_proposals').update({ status: 'REJECTED' }).eq('id', proposalId);
+    if (error) {
+        alert("अस्वीकृत गर्दा त्रुटि: " + error.message);
+    } else {
+        // --- नयाँ: सूचना पठाउने ---
+        if (proposal) {
+            let actionTxt = proposal.change_type === 'CREATE' ? 'नयाँ थप्ने' : (proposal.change_type === 'UPDATE' ? 'सम्पादन गर्ने' : 'हटाउने');
+            let msg = `तपाईंको प्रस्ताव: ${actionTxt} (सदस्य: ${proposal.proposed_data.name || 'नाम नखुलेको'}) अस्वीकृत भयो।`;
+            await supabaseClient.from('notifications').insert([{ user_id: proposal.submitted_by, message: msg }]);
+        }
+        openAdminModal();
+    }
+}
+
+// --- Closing Modals ---
+function closeAuthModal() { const m = document.getElementById('auth-modal'); if(m) m.style.display = 'none'; }
+function closeProfileModal() { const m = document.getElementById('profile-modal'); if(m) m.style.display = 'none'; }
+function closeAdminModal() { const m = document.getElementById('admin-modal'); if(m) m.style.display = 'none'; }
+function closeExportModal() { const m = document.getElementById('export-modal'); if(m) m.style.display = 'none'; }
+function closeAddModal() { const m = document.getElementById('add-modal'); if(m) m.style.display = 'none'; }
+function closeEditModal() { const m = document.getElementById('edit-modal'); if(m) m.style.display = 'none'; }
+
+// --- Event Listeners (Esc Key) ---
+document.addEventListener('keydown', function(event) {
+    if (event.key === "Escape" || event.keyCode === 27) {
+        try {
+            // सबै मोडलहरू सुरक्षित तरिकाले बन्द गर्ने
+            if(typeof closeExportModal === 'function') closeExportModal();
+            if(typeof closeEditModal === 'function') closeEditModal();
+            if(typeof closeAddModal === 'function') closeAddModal();
+            if(typeof closeAuthModal === 'function') closeAuthModal();
+            if(typeof closeAdminModal === 'function') closeAdminModal();
+            if(typeof closeProfileModal === 'function') closeProfileModal();
+            if(typeof closeNotifications === 'function') closeNotifications(); // सूचना मोडल बन्द गर्न
+            
+            // सदस्यको विवरण कार्ड बन्द गर्ने
+            const detailsPanel = document.getElementById('details-panel');
+            if (detailsPanel) detailsPanel.classList.remove('show');
+            
+            // सर्च बक्सको सजेसन लुकाउने
+            const searchSugg = document.getElementById('searchSuggestions');
+            if (searchSugg) searchSugg.style.display = 'none';
+            
+            // सर्च गर्दा हाइलाइट भएको बक्सलाई नर्मल बनाउने
+            if (typeof d3 !== 'undefined') {
+                d3.selectAll('.node-box').classed('search-highlight', false);
+            }
+        } catch (error) {
+            console.error("Esc बटनबाट मोडल बन्द गर्दा सानो त्रुटि:", error);
+        }
+    }
+});
+
+document.addEventListener('click', function(e) {
+    const suggestionsBox = document.getElementById('searchSuggestions');
+    if (suggestionsBox && !e.target.closest('.search-container')) suggestionsBox.style.display = 'none';
+    
+    const panel = document.getElementById('details-panel');
+    if (panel && panel.classList.contains('show') && !panel.contains(e.target) && !e.target.closest('.node-box')) {
+        panel.classList.remove('show');
+    }
+});
+
+// --- Utility Functions ---
 function toDevanagariDigits(num) {
     const devDigits = ['०','१','२','३','४','५','६','७','८','९'];
     return num.toString().split('').map(d => devDigits[d] || d).join('');
@@ -60,8 +533,8 @@ function toDevanagariDigits(num) {
 const dev2romMap = {
     'क':'k','ख':'kh','ग':'g','घ':'gh','ङ':'ng','च':'ch','छ':'chh','ज':'j','झ':'jh','ञ':'ny',
     'ट':'t','ठ':'th','ड':'d','ढ':'dh','ण':'n','त':'t','थ':'th','द':'d','ध':'dh','न':'n',
-    'प':'p','फ':'f','ब':'b','भ':'bh','म':'m','य':'y','र':'r','ल':'l','व':'v','श':'sh','ष':'sh','स':'s','ह':'h',
-    'ा':'a','ि':'i','ी':'i','ु':'u','ू':'u','े':'e','ै':'ai','ो':'o','ौ':'au','ं':'n','ः':'h','ृ':'ri','्':''
+    'प':'p','फ':'ph','ब':'b','भ':'bh','म':'m','य':'y','र':'r','ल':'l','व':'b','श':'sh','ष':'shh','स':'s','ह':'h',
+    'ा':'a','ि':'i','ी':'i','ु':'u','ू':'u','े':'e','ै':'ai','ो':'o','ौ':'au','ं':'am','ः':'ah','ृ':'ri','्':''
 };
 
 function normalizeForSearch(text) {
@@ -145,30 +618,7 @@ function focusSearchNode(id, name) {
     }, 450); 
 }
 
-document.addEventListener('click', function(e) {
-    const suggestionsBox = document.getElementById('searchSuggestions');
-    if (suggestionsBox && !e.target.closest('.search-container')) suggestionsBox.style.display = 'none';
-    
-    const panel = document.getElementById('details-panel');
-    if (panel && panel.classList.contains('show') && !panel.contains(e.target) && !e.target.closest('.node-box')) {
-        panel.classList.remove('show');
-    }
-});
-
-document.addEventListener('keydown', function(event) {
-    if (event.key === "Escape" || event.keyCode === 27) {
-        closeExportModal();
-        closeEditModal();
-        closeAddModal();
-        const detailsPanel = document.getElementById('details-panel');
-        if (detailsPanel) detailsPanel.classList.remove('show');
-        
-        const searchSugg = document.getElementById('searchSuggestions');
-        if (searchSugg) searchSugg.style.display = 'none';
-        d3.selectAll('.node-box').classed('search-highlight', false);
-    }
-});
-
+// --- Import/Export/Reset ---
 function exportJSON() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(familyData, null, 2));
     const a = document.createElement('a'); a.setAttribute("href", dataStr); a.setAttribute("download", "Aryal_Family_Tree.json"); a.click();
@@ -183,7 +633,8 @@ function importJSON(event) {
             if (Array.isArray(importedData)) {
                 familyData = importedData;
                 nextId = Math.max(...familyData.map(d => d.id)) + 1;
-                saveTree(); renderTree(true); 
+                localStorage.setItem('aryalFamilyTreeDataV1_2', JSON.stringify(familyData));
+                renderTree(true); 
                 setTimeout(() => alert("ब्याकअप सफलतापूर्वक लोड भयो!"), 100);
             }
         } catch(err) { alert("Invalid JSON file."); }
@@ -206,6 +657,7 @@ function factoryReset() {
     }
 }
 
+// --- D3 Zoom & Camera ---
 const viewport = d3.select("#tree-viewport");
 const zoomLayer = d3.select("#zoom-layer");
 const zoom = d3.zoom().scaleExtent([0.1, 3]).on("zoom", (e) => {
@@ -231,6 +683,7 @@ function centerCamera(instant = false) {
     else viewport.transition().duration(400).call(zoom.transform, target);
 }
 
+// --- Drag and Drop ---
 function dragStart(e, id) {
     draggingNodeId = id;
     e.dataTransfer.setData('text/plain', id);
@@ -277,21 +730,16 @@ function dragEnterTarget(e, targetId) {
         renderTree();
     }
 }
-
 function dragOver(e) { e.preventDefault(); }
-
-function dropNode(e, targetId) {
-    e.preventDefault();
-    saveTree(); 
-}
-
+function dropNode(e, targetId) { e.preventDefault(); }
 function dragEnd(e) { 
     draggingNodeId = null;
     d3.selectAll('.node-box').style('opacity', 1);
-    saveTree();
+    // Drag रिरअर्डरलाई डेटाबेसमा सेभ गर्न सकिन्छ, तर अहिलेलाई UI मै रिअर्डर हुन्छ
     renderTree();
 }
 
+// --- D3 Rendering ---
 const nodeWidth = 130; 
 const nodeHeight = 80;  
 const horizontalGap = 15; 
@@ -679,6 +1127,7 @@ function renderTree(isInitialLoadOrReset = false) {
         .style("top", d => `${d.y}px`);
 }
 
+// --- Modals Add/Edit Forms ---
 function updateAddSpouseLabel() {
     const gender = document.getElementById('add-gender').value;
     document.getElementById('add-spouse-label').innerText = gender === 'M' ? 'पत्नी (वैकल्पिक):' : 'पति (वैकल्पिक):';
@@ -712,8 +1161,6 @@ function openAddModal() {
     document.getElementById('add-modal').style.display = 'block';
 }
 
-function closeAddModal() { document.getElementById('add-modal').style.display = 'none'; }
-
 function updateAddMotherDropdown(parentId) {
     const motherSelect = document.getElementById('add-mother');
     motherSelect.innerHTML = '<option value="">माता छान्नुहोस्...</option>';
@@ -738,117 +1185,12 @@ function renderAddSpouses() {
         list.appendChild(item);
     });
 }
-
 function addSpouseToAdd() {
     const input = document.getElementById('new-add-spouse-input');
     const val = input.value.trim();
     if(val !== '') { tempAddSpouses.push(val); input.value = ''; renderAddSpouses(); }
 }
 function removeSpouseFromAdd(index) { tempAddSpouses.splice(index, 1); renderAddSpouses(); }
-
-// --- DATABASE SAVE & ADMIN WORKFLOW ---
-
-async function saveNewNode() {
-    if (!currentUser) return alert("कृपया नयाँ सदस्य थप्न सुरुमा लगइन गर्नुहोस्।");
-    
-    const name = document.getElementById('add-name').value.trim();
-    const birthDate = document.getElementById('add-birth').value.trim();
-    const deathDate = document.getElementById('add-death').value.trim();
-    const parentIdVal = document.getElementById('add-parent').value;
-    const gender = document.getElementById('add-gender').value;
-    const motherName = document.getElementById('add-mother').value;
-    const hierarchy = parseInt(document.getElementById('add-hierarchy').value);
-    
-    if (parentIdVal === "") return alert("कृपया पिता छान्नुहोस्।");
-    const parentId = parentIdVal === "null" ? null : parseInt(parentIdVal);
-    
-    // Supabase को Table अनुसारको डाटा फर्म्याट
-    let newNode = { 
-        id: nextId++, 
-        name: name, 
-        parent_id: parentId, 
-        gender: gender, 
-        spouses: [...tempAddSpouses], 
-        hierarchy_order: hierarchy 
-    };
-    if(motherName !== "") newNode.mother_name = motherName;
-    if(birthDate !== "") newNode.birth_date = birthDate;
-    if(deathDate !== "") newNode.death_date = deathDate;
-    
-    if (isAdmin) {
-        // एडमिन (तपाईं) ले थप्दा सिधै लाइभ रूख (members table) मा जाने
-        const { error } = await supabaseClient.from('members').insert([newNode]);
-        if (error) return alert("त्रुटि: " + error.message);
-        
-        alert("नयाँ सदस्य सफलतापूर्वक थपियो!");
-        closeAddModal();
-        loadDataFromSupabase(); // रूख रिफ्रेस गर्ने
-    } else {
-        // साधारण युजरले थप्दा Proposal मा जाने
-        const { error } = await supabaseClient.from('member_proposals').insert([{
-            change_type: 'CREATE',
-            proposed_data: newNode,
-            submitted_by: currentUser.id,
-            status: 'PENDING'
-        }]);
-        if (error) return alert("प्रस्ताव पठाउन त्रुटि: " + error.message);
-        
-        alert("तपाईंको प्रस्ताव एडमिनलाई पठाइयो। स्वीकृत भएपछि मात्र वंशावलीमा देखिनेछ।");
-        closeAddModal();
-    }
-}
-
-async function openAdminModal() {
-    document.getElementById('admin-modal').style.display = 'block';
-    const list = document.getElementById('proposals-list');
-    list.innerHTML = 'लोड हुँदैछ...';
-    
-    const { data, error } = await supabaseClient.from('member_proposals').select('*').eq('status', 'PENDING');
-    if (error) return list.innerHTML = 'त्रुटि: ' + error.message;
-    
-    if (!data || data.length === 0) {
-        list.innerHTML = `
-            <p style="text-align:center; color:#7f8c8d; padding: 20px 0;">कुनै नयाँ प्रस्ताव छैन।</p>
-            <button class="header-btn" onclick="handleLogout()" style="width:100%; margin-top:10px; background:#e74c3c; color:white;">लगआउट (Logout)</button>
-        `;
-        return;
-    }
-    
-    let html = '';
-    data.forEach(p => {
-        let d = p.proposed_data;
-        html += `<div style="border:1px solid #cbd5e1; padding:12px; margin-bottom:10px; border-radius:6px; background:#f8fafc; font-size:13px;">
-            <div style="margin-bottom: 5px;"><strong>नयाँ सदस्य:</strong> ${d.name || '(नाम नखुलेको)'}</div>
-            <div style="margin-bottom: 10px; color:#7f8c8d;"><strong>लिङ्ग:</strong> ${d.gender === 'M' ? 'पुरुष' : 'महिला'}</div>
-            <div style="display:flex; gap:10px;">
-                <button class="header-btn" style="flex:1; background:#27ae60; color:white;" onclick="approveProposal(${p.id}, '${p.change_type}', '${JSON.stringify(d).replace(/'/g, "\\'")}')">स्वीकृत ✔️</button>
-                <button class="header-btn" style="flex:1; background:#e74c3c; color:white;" onclick="rejectProposal(${p.id})">अस्वीकृत ✕</button>
-            </div>
-        </div>`;
-    });
-    html += '<button class="header-btn" onclick="handleLogout()" style="width:100%; margin-top:15px; background:#e74c3c; color:white;">लगआउट (Logout)</button>';
-    list.innerHTML = html;
-}
-
-function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
-
-async function approveProposal(proposalId, changeType, proposedDataStr) {
-    const proposedData = JSON.parse(proposedDataStr);
-    if (changeType === 'CREATE') {
-        const { error: insertErr } = await supabaseClient.from('members').insert([proposedData]);
-        if (insertErr) return alert("स्वीकृत गर्दा त्रुटि: " + insertErr.message);
-    }
-    await supabaseClient.from('member_proposals').update({ status: 'APPROVED' }).eq('id', proposalId);
-    alert("प्रस्ताव स्वीकृत भयो! रूख अपडेट हुँदैछ...");
-    openAdminModal();
-    loadDataFromSupabase();
-}
-
-async function rejectProposal(proposalId) {
-    if(!confirm("के तपाईं यो प्रस्ताव अस्वीकृत गर्न पक्का हुनुहुन्छ?")) return;
-    await supabaseClient.from('member_proposals').update({ status: 'REJECTED' }).eq('id', proposalId);
-    openAdminModal();
-}
 
 function openEditModal(id) {
     const person = familyData.find(d => d.id === id);
@@ -915,57 +1257,15 @@ function renderEditSpouses() {
         list.appendChild(item);
     });
 }
-
 function addSpouseToEdit() {
     const input = document.getElementById('new-spouse-input');
     const val = input.value.trim();
     if(val !== '') { tempEditSpouses.push(val); input.value = ''; renderEditSpouses(); }
 }
 function removeSpouseFromEdit(index) { tempEditSpouses.splice(index, 1); renderEditSpouses(); }
-function closeEditModal() { document.getElementById('edit-modal').style.display = 'none'; }
 
-function saveEdit() {
-    const id = parseInt(document.getElementById('edit-id').value);
-    const person = familyData.find(d => d.id === id);
-    
-    const birthDate = document.getElementById('edit-birth').value.trim();
-    const deathDate = document.getElementById('edit-death').value.trim();
-    
-    person.name = document.getElementById('edit-name').value.trim();
-    person.gender = document.getElementById('edit-gender').value;
-    person.hierarchyOrder = parseInt(document.getElementById('edit-hierarchy').value);
-    
-    if(birthDate !== "") person.birthDate = birthDate; else delete person.birthDate;
-    if(deathDate !== "") person.deathDate = deathDate; else delete person.deathDate;
-    
-    const parentVal = document.getElementById('edit-parent').value;
-    person.parentId = parentVal === "null" ? null : parseInt(parentVal);
-    
-    const motherVal = document.getElementById('edit-mother').value;
-    if(motherVal !== "") person.motherName = motherVal; else delete person.motherName;
-    person.spouses = [...tempEditSpouses];
-    
-    saveTree(); closeEditModal(); renderTree();
-}
 
-function removeNode(id) {
-    if(confirm("के तपाईं यो व्यक्ति र यसका सबै सन्तानहरूलाई हटाउन चाहनुहुन्छ?")) {
-        let toRemove = new Set([id]);
-        let changed = true;
-        while (changed) {
-            changed = false;
-            familyData.forEach(d => {
-                if (toRemove.has(d.parentId) && !toRemove.has(d.id)) { toRemove.add(d.id); changed = true; }
-            });
-        }
-        familyData = familyData.filter(d => !toRemove.has(d.id));
-        if (focusId && toRemove.has(focusId)) focusId = null;
-        saveTree(); renderTree();
-    }
-}
-
-function closeExportModal() { document.getElementById('export-modal').style.display = 'none'; }
-
+// --- Export (PDF/Print) Features ---
 async function showExportOptions() {
     document.getElementById('export-modal').style.display = 'block';
     document.getElementById('multi-page-preview').innerHTML = '';
@@ -1268,117 +1568,7 @@ async function executeNativePrint() {
     }, 500);
 }
 
+// --- Init ---
 document.addEventListener('DOMContentLoaded', () => {
     loadDataFromSupabase();
 });
-
-// --- AUTHENTICATION LOGIC ---
-let currentUser = null;
-let isAdmin = false;
-const ADMIN_EMAIL = 'support@kishoraryal.com.np'; 
-
-// पेज लोड हुँदा युजर लगइन छ कि छैन जाँच्ने
-supabaseClient.auth.getSession().then(({ data: { session } }) => {
-    updateAuthState(session?.user);
-});
-
-// लगइन वा लगआउट हुँदा रियलटाइममा थाहा पाउने
-supabaseClient.auth.onAuthStateChange((_event, session) => {
-    updateAuthState(session?.user);
-});
-
-function updateAuthState(user) {
-    currentUser = user;
-    isAdmin = user && user.email === ADMIN_EMAIL;
-    
-    const authBtn = document.getElementById('authBtn');
-    const emailSpan = document.getElementById('loggedInUserEmail');
-    
-    if (user) {
-        authBtn.innerText = isAdmin ? '🛡️ एडमिन प्यानल' : 'लगआउट';
-        authBtn.onclick = () => { 
-            if (isAdmin) {
-                openAdminModal();
-            } else {
-                if(confirm('लगआउट गर्न चाहनुहुन्छ?')) handleLogout(); 
-            }
-        };
-        authBtn.style.background = isAdmin ? '#f39c12' : '#e74c3c';
-        authBtn.style.color = 'white';
-        
-        emailSpan.innerText = '👤 ' + user.email;
-        emailSpan.style.display = 'inline-block';
-    } else {
-        authBtn.innerText = 'लगइन / दर्ता';
-        authBtn.onclick = openAuthModal;
-        authBtn.style.background = '#f4f6fa';
-        authBtn.style.color = '#2c3e50';
-        
-        emailSpan.innerText = '';
-        emailSpan.style.display = 'none';
-    }
-}
-
-function openAuthModal() {
-    document.getElementById('auth-email').value = '';
-    document.getElementById('auth-password').value = '';
-    document.getElementById('auth-message').innerText = '';
-    document.getElementById('auth-modal').style.display = 'block';
-}
-
-function closeAuthModal() {
-    document.getElementById('auth-modal').style.display = 'none';
-}
-
-async function handleSignup() {
-    const email = document.getElementById('auth-email').value.trim();
-    const password = document.getElementById('auth-password').value;
-    const msg = document.getElementById('auth-message');
-    msg.style.color = '#e74c3c';
-    
-    if (!email || password.length < 6) return msg.innerText = 'सही इमेल र कम्तीमा ६ अक्षरको पासवर्ड राख्नुहोस्।';
-    
-    msg.innerText = 'दर्ता हुँदैछ...';
-    const { data, error } = await supabaseClient.auth.signUp({ email, password });
-    
-    if (error) {
-        msg.innerText = error.message;
-    } else {
-        msg.style.color = '#27ae60';
-        msg.innerText = 'दर्ता सफल! कृपया लगइन गर्नुहोस्। (वा इमेल भेरिफाई गर्नुहोस्)';
-    }
-}
-
-async function handleLogin() {
-    const email = document.getElementById('auth-email').value.trim();
-    const password = document.getElementById('auth-password').value;
-    const msg = document.getElementById('auth-message');
-    
-    msg.style.color = '#e74c3c';
-    msg.innerText = 'लगइन हुँदैछ...';
-    
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) {
-        msg.innerText = "लगइन असफल: इमेल वा पासवर्ड मिलेन।";
-    } else {
-        closeAuthModal();
-    }
-}
-
-async function handleLogout() {
-    try {
-        await supabaseClient.auth.signOut();
-    } catch (error) {
-        console.error("लगआउट गर्दा समस्या भयो:", error);
-    }
-    
-    // खुल्ला भएका सबै मोडलहरू बन्द गर्ने
-    const adminModal = document.getElementById('admin-modal');
-    if (adminModal) adminModal.style.display = 'none';
-    
-    const authModal = document.getElementById('auth-modal');
-    if (authModal) authModal.style.display = 'none';
-    
-    // पेजलाई पूर्ण रूपमा रिफ्रेस गर्ने
-    window.location.reload();
-}

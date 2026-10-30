@@ -18,21 +18,27 @@
     </header>
 
     <div class="toolbar-wrapper" data-html2canvas-ignore>
-        <div class="header-panel">
+        <div class="header-panel" style="display: flex; flex-direction: column; gap: 12px; padding: 12px 15px;">
             
-            <!-- देब्रेपट्टि: सर्च र लगइन/इमेल एउटै लाइनमा -->
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <div class="search-container" style="flex: 0 1 200px;">
-                    <input type="text" id="searchInput" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()">
+            <!-- माथिल्लो लाइन: सर्च बक्स र लगइन/इमेल -->
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 10px; flex-wrap: wrap;">
+                <div class="search-container" style="flex: 1; max-width: 400px; min-width: 200px;">
+                    <input type="text" id="searchInput" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()" autocomplete="off">
                     <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
                     <div class="suggestions-box" id="searchSuggestions"></div>
                 </div>
-                <button class="header-btn" id="authBtn" onclick="openAuthModal()" style="width: auto; padding: 0 12px; flex-shrink: 0;">लगइन / दर्ता</button>
-                <span id="loggedInUserEmail" style="font-size: 13px; color: #183153; font-weight: bold; display: none; white-space: nowrap;"></span>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <!-- नयाँ सूचना घण्टी (Notification Bell) -->
+                    <span id="notification-bell" onclick="openNotifications()" style="cursor:pointer; display:none; font-size:18px; position:relative;" title="सूचनाहरू">
+                        🔔<span id="notif-badge" style="display:none; position:absolute; top:-5px; right:-8px; background:#e74c3c; color:white; border-radius:50%; padding:2px 5px; font-size:10px; font-weight:bold;">0</span>
+                    </span>
+                    <span id="loggedInUserEmail" style="font-size: 13px; color: #183153; font-weight: bold; display: none; white-space: nowrap;"></span>
+                    <button class="header-btn" id="authBtn" onclick="openAuthModal()" style="width: auto; padding: 0 15px;">लगइन / दर्ता</button>
+                </div>
             </div>
             
-            <!-- दाहिनेपट्टि: बाँकी बटनहरू -->
-            <div class="header-buttons-right">
+            <!-- तल्लो लाइन: बाँकी टुल्स बटनहरू -->
+            <div class="header-buttons-right" style="justify-content: flex-start; width: 100%;">
                 <button class="header-btn" onclick="openAddModal()">+ नयाँ सदस्य</button>
                 <button class="header-btn" onclick="expandAll()">सबै देखाउने</button>
                 <button class="header-btn" onclick="collapseAll()">सबै लुकाउने</button>
@@ -44,15 +50,13 @@
                     <div class="dropdown-content">
                         <button onclick="exportJSON()">💾 सेभ JSON</button>
                         <button onclick="document.getElementById('importFile').click()">📂 लोड JSON</button>
-                        <button onclick="exportDataJS()">💾 सेभ JS</button>
+                        <button onclick="exportDataJS()">💾 सेभ JS</button> <!-- यो लाइन थपियो -->
                         <button onclick="factoryReset()">⚠️ रिसेट</button>
                     </div>
                 </div>
                 <input type="file" id="importFile" accept=".json" style="display:none;" onchange="importJSON(event)">
-                
                 <button class="header-btn" onclick="showExportOptions()">प्रिन्ट / डाउनलोड</button>
             </div>
-
         </div>
     </div>
 
@@ -232,21 +236,60 @@
 	<!-- लगइन / दर्ता मोडल -->
     <div id="auth-modal" class="modal-overlay">
         <div class="modal-content" style="max-width: 350px;">
-            <button class="close-modal-btn" onclick="closeAuthModal()">✕</button>
+            <button class="close-modal-btn" onclick="closeAuthModal()" type="button">✕</button>
             <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px;">लगइन / दर्ता</h2>
+            
+            <!-- onsubmit मा नयाँ फङ्सन राखिएको छ -->
+            <form id="auth-form" onsubmit="submitAuthForm(event)">
+                <div id="signup-fields" style="display: none;">
+                    <div class="edit-form-group">
+                        <label>पूरा नाम:</label>
+                        <input type="text" id="auth-name" name="name" autocomplete="name" placeholder="तपाईंको पूरा नाम">
+                    </div>
+                    <div class="edit-form-group">
+                        <label>मोबाइल नम्बर:</label>
+                        <input type="text" id="auth-phone" name="tel" autocomplete="tel" placeholder="तपाईंको मोबाइल नम्बर">
+                    </div>
+                </div>
+
+                <div class="edit-form-group">
+                    <label>इमेल:</label>
+                    <input type="email" id="auth-email" name="email" autocomplete="username" placeholder="तपाईंको इमेल">
+                </div>
+                <div class="edit-form-group">
+                    <label>पासवर्ड:</label>
+                    <!-- Enter थिच्दा सिधै submit होस् भनेर onkeydown हटाइएको छ -->
+                    <input type="password" id="auth-password" name="password" autocomplete="current-password" placeholder="पासवर्ड (कम्तीमा ६ अक्षर)">
+                </div>
+                <div style="text-align: center; margin-top: 15px;">
+                    <!-- Type लाई submit बनाइएको छ -->
+                    <button type="submit" class="header-btn" id="login-btn-main" style="width: 100%; background: #3498db; color: white; margin-bottom: 10px;">लगइन (Login)</button>
+                    <!-- दर्ता बटन type="button" नै हुन्छ -->
+                    <button type="button" class="header-btn" id="signup-btn-main" onclick="handleSignup()" style="width: 100%; background: #2ecc71; color: white;">नयाँ दर्ता (Sign Up)</button>
+                    <button type="button" id="back-to-login-btn" onclick="showLoginOnly()" style="display:none; width: 100%; margin-top: 10px; background: transparent; color: #3498db; border: none; cursor: pointer; text-decoration: underline;">लगइनमा फर्कनुहोस्</button>
+                </div>
+                <div id="auth-message" style="margin-top: 10px; font-size: 13px; color: #e74c3c; text-align: center;"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- प्रोफाइल सम्पादन मोडल -->
+    <div id="profile-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 350px;">
+            <button class="close-modal-btn" onclick="closeProfileModal()">✕</button>
+            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px;">प्रोफाइल सम्पादन</h2>
             <div class="edit-form-group">
-                <label>इमेल:</label>
-                <input type="email" id="auth-email" placeholder="तपाईंको इमेल">
+                <label>पूरा नाम:</label>
+                <input type="text" id="prof-name">
             </div>
             <div class="edit-form-group">
-                <label>पासवर्ड:</label>
-                <input type="password" id="auth-password" placeholder="पासवर्ड (कम्तीमा ६ अक्षर)">
+                <label>मोबाइल नम्बर:</label>
+                <input type="text" id="prof-phone">
             </div>
-            <div style="text-align: center; margin-top: 15px;">
-                <button class="header-btn" onclick="handleLogin()" style="width: 100%; background: #3498db; color: white; margin-bottom: 10px;">लगइन (Login)</button>
-                <button class="header-btn" onclick="handleSignup()" style="width: 100%; background: #2ecc71; color: white;">नयाँ दर्ता (Sign Up)</button>
+            <div style="text-align: right; margin-top: 15px;">
+                <button class="header-btn" onclick="saveProfile()" style="background: #27ae60; color: white; width:100%;">सेभ गर्नुहोस्</button>
             </div>
-            <div id="auth-message" style="margin-top: 10px; font-size: 13px; color: #e74c3c; text-align: center;"></div>
+            <div id="prof-message" style="margin-top: 10px; font-size: 13px; text-align: center;"></div>
         </div>
     </div>
 	<!-- एडमिन प्यानल मोडल (प्रस्तावहरू जाँच्ने) -->
@@ -256,6 +299,16 @@
             <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px;">🛡️ एडमिन प्यानल</h2>
             <p style="font-size: 13px; color: #7f8c8d; margin-top: 0;">नयाँ सदस्य थप्ने प्रस्तावहरू (Pending Proposals)</p>
             <div id="proposals-list" style="max-height: 350px; overflow-y: auto; margin-top: 10px;">
+                लोड हुँदैछ...
+            </div>
+        </div>
+    </div>
+    <!-- सूचनाहरू (Notifications) मोडल -->
+    <div id="notif-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 350px;">
+            <button class="close-modal-btn" onclick="closeNotifications()">✕</button>
+            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px;">🔔 सूचनाहरू</h2>
+            <div id="notif-list" style="max-height: 300px; overflow-y: auto;">
                 लोड हुँदैछ...
             </div>
         </div>
