@@ -1,3 +1,8 @@
+// Supabase Setup
+const SUPABASE_URL = https://dqvwyprvgglmwdbernpq.supabase.co;
+const SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxdnd5cHJ2Z2dsbXdkYmVybnBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNDg1ODUsImV4cCI6MjEwODkyNDU4NX0.E79qy5EeQsYAwkrt8WSnQvABxo4L8T_ZYbFnzvT4law;
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 let familyData = [];
 let nextId = 70;
 let collapsedNodes = new Set();
@@ -7,18 +12,44 @@ let tempEditSpouses = [];
 let nodePositions = []; 
 let searchTimeout;
 let draggingNodeId = null;
-
 const EXPORT_SCALE = 1.5;
-const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2'); 
 
-if (savedData) {
-    familyData = JSON.parse(savedData);
-    nextId = Math.max(...familyData.map(d => d.id)) + 1;
-} else {
-    familyData = typeof defaultFamilyData !== 'undefined' ? JSON.parse(JSON.stringify(defaultFamilyData)) : [];
-    nextId = Math.max(...familyData.map(d => d.id), 0) + 1;
+// Database बाट डाटा तान्ने नयाँ फङ्सन
+async function loadDataFromSupabase() {
+    try {
+        const { data, error } = await supabase.from('members').select('*');
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            // Database को snake_case लाई हाम्रो JS को camelCase मा बदल्ने
+            familyData = data.map(d => ({
+                id: d.id,
+                name: d.name || "",
+                gender: d.gender,
+                parentId: d.parent_id,
+                motherName: d.mother_name,
+                spouses: d.spouses || [],
+                hierarchyOrder: d.hierarchy_order || 99,
+                birthDate: d.birth_date,
+                deathDate: d.death_date
+            }));
+            nextId = Math.max(...familyData.map(d => d.id), 0) + 1;
+            // अफलाइन ब्याकअपको लागि लोकलस्टोरेजमा पनि सेभ गर्ने
+            localStorage.setItem('aryalFamilyTreeDataV1_2', JSON.stringify(familyData));
+        } else {
+            // यदि डाटाबेसमा केही भेटिएन भने अफलाइन डाटा प्रयोग गर्ने
+            const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2');
+            if (savedData) familyData = JSON.parse(savedData);
+        }
+    } catch (err) {
+        console.error("Database बाट डाटा ल्याउन समस्या भयो:", err);
+        const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2');
+        if (savedData) familyData = JSON.parse(savedData);
+    }
+    renderTree(true);
 }
 
+// पुरानो saveTree फङ्सनलाई पनि अहिलेलाई लोकलस्टोरेजमै मात्र राख्ने (अर्को स्टेपमा हामी यसलाई Database मा सेभ हुने बनाउँछौँ)
 function saveTree() { localStorage.setItem('aryalFamilyTreeDataV1_2', JSON.stringify(familyData)); }
 
 function toDevanagariDigits(num) {
@@ -1155,5 +1186,5 @@ async function executeNativePrint() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    renderTree(true);
+    loadDataFromSupabase();
 });
