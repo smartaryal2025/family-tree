@@ -1,7 +1,7 @@
 // Supabase Setup
 const SUPABASE_URL = 'https://dqvwyprvgglmwdbernpq.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxdnd5cHJ2Z2dsbXdkYmVybnBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMzNDg1ODUsImV4cCI6MjEwODkyNDU4NX0.E79qy5EeQsYAwkrt8WSnQvABxo4L8T_ZYbFnzvT4law';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let familyData = [];
 let nextId = 70;
@@ -17,7 +17,7 @@ const EXPORT_SCALE = 1.5;
 // Database बाट डाटा तान्ने नयाँ फङ्सन
 async function loadDataFromSupabase() {
     try {
-        const { data, error } = await supabase.from('members').select('*');
+        const { data, error } = await supabaseClient.from('members').select('*');
         if (error) throw error;
         
         if (data && data.length > 0) {
