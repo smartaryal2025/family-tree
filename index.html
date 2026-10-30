@@ -243,6 +243,17 @@
             <div id="auth-message" style="margin-top: 10px; font-size: 13px; color: #e74c3c; text-align: center;"></div>
         </div>
     </div>
+	<!-- एडमिन प्यानल मोडल (प्रस्तावहरू जाँच्ने) -->
+    <div id="admin-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 450px;">
+            <button class="close-modal-btn" onclick="closeAdminModal()">✕</button>
+            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px; font-size: 18px;">🛡️ एडमिन प्यानल</h2>
+            <p style="font-size: 13px; color: #7f8c8d; margin-top: 0;">नयाँ सदस्य थप्ने प्रस्तावहरू (Pending Proposals)</p>
+            <div id="proposals-list" style="max-height: 350px; overflow-y: auto; margin-top: 10px;">
+                लोड हुँदैछ...
+            </div>
+        </div>
+    </div>
 	<script src="app.js"></script>
 </body>
 </html>

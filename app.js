@@ -746,7 +746,11 @@ function addSpouseToAdd() {
 }
 function removeSpouseFromAdd(index) { tempAddSpouses.splice(index, 1); renderAddSpouses(); }
 
-function saveNewNode() {
+// --- DATABASE SAVE & ADMIN WORKFLOW ---
+
+async function saveNewNode() {
+    if (!currentUser) return alert("कृपया नयाँ सदस्य थप्न सुरुमा लगइन गर्नुहोस्।");
+    
     const name = document.getElementById('add-name').value.trim();
     const birthDate = document.getElementById('add-birth').value.trim();
     const deathDate = document.getElementById('add-death').value.trim();
@@ -758,13 +762,92 @@ function saveNewNode() {
     if (parentIdVal === "") return alert("कृपया पिता छान्नुहोस्।");
     const parentId = parentIdVal === "null" ? null : parseInt(parentIdVal);
     
-    let newNode = { id: nextId++, name: name, parentId: parentId, gender: gender, spouses: [...tempAddSpouses], hierarchyOrder: hierarchy };
-    if(motherName !== "") newNode.motherName = motherName;
-    if(birthDate !== "") newNode.birthDate = birthDate;
-    if(deathDate !== "") newNode.deathDate = deathDate;
+    // Supabase को Table अनुसारको डाटा फर्म्याट
+    let newNode = { 
+        id: nextId++, 
+        name: name, 
+        parent_id: parentId, 
+        gender: gender, 
+        spouses: [...tempAddSpouses], 
+        hierarchy_order: hierarchy 
+    };
+    if(motherName !== "") newNode.mother_name = motherName;
+    if(birthDate !== "") newNode.birth_date = birthDate;
+    if(deathDate !== "") newNode.death_date = deathDate;
     
-    familyData.push(newNode);
-    saveTree(); closeAddModal(); renderTree();
+    if (isAdmin) {
+        // एडमिन (तपाईं) ले थप्दा सिधै लाइभ रूख (members table) मा जाने
+        const { error } = await supabaseClient.from('members').insert([newNode]);
+        if (error) return alert("त्रुटि: " + error.message);
+        
+        alert("नयाँ सदस्य सफलतापूर्वक थपियो!");
+        closeAddModal();
+        loadDataFromSupabase(); // रूख रिफ्रेस गर्ने
+    } else {
+        // साधारण युजरले थप्दा Proposal मा जाने
+        const { error } = await supabaseClient.from('member_proposals').insert([{
+            change_type: 'CREATE',
+            proposed_data: newNode,
+            submitted_by: currentUser.id,
+            status: 'PENDING'
+        }]);
+        if (error) return alert("प्रस्ताव पठाउन त्रुटि: " + error.message);
+        
+        alert("तपाईंको प्रस्ताव एडमिनलाई पठाइयो। स्वीकृत भएपछि मात्र वंशावलीमा देखिनेछ।");
+        closeAddModal();
+    }
+}
+
+async function openAdminModal() {
+    document.getElementById('admin-modal').style.display = 'block';
+    const list = document.getElementById('proposals-list');
+    list.innerHTML = 'लोड हुँदैछ...';
+    
+    const { data, error } = await supabaseClient.from('member_proposals').select('*').eq('status', 'PENDING');
+    if (error) return list.innerHTML = 'त्रुटि: ' + error.message;
+    
+    if (!data || data.length === 0) {
+        list.innerHTML = `
+            <p style="text-align:center; color:#7f8c8d; padding: 20px 0;">कुनै नयाँ प्रस्ताव छैन।</p>
+            <button class="header-btn" onclick="handleLogout()" style="width:100%; margin-top:10px; background:#e74c3c; color:white;">लगआउट (Logout)</button>
+        `;
+        return;
+    }
+    
+    let html = '';
+    data.forEach(p => {
+        let d = p.proposed_data;
+        html += `<div style="border:1px solid #cbd5e1; padding:12px; margin-bottom:10px; border-radius:6px; background:#f8fafc; font-size:13px;">
+            <div style="margin-bottom: 5px;"><strong>नयाँ सदस्य:</strong> ${d.name || '(नाम नखुलेको)'}</div>
+            <div style="margin-bottom: 10px; color:#7f8c8d;"><strong>लिङ्ग:</strong> ${d.gender === 'M' ? 'पुरुष' : 'महिला'}</div>
+            <div style="display:flex; gap:10px;">
+                <button class="header-btn" style="flex:1; background:#27ae60; color:white;" onclick="approveProposal(${p.id}, '${p.change_type}', '${JSON.stringify(d).replace(/'/g, "\\'")}')">स्वीकृत ✔️</button>
+                <button class="header-btn" style="flex:1; background:#e74c3c; color:white;" onclick="rejectProposal(${p.id})">अस्वीकृत ✕</button>
+            </div>
+        </div>`;
+    });
+    html += '<button class="header-btn" onclick="handleLogout()" style="width:100%; margin-top:15px; background:#e74c3c; color:white;">लगआउट (Logout)</button>';
+    list.innerHTML = html;
+}
+
+function closeAdminModal() { document.getElementById('admin-modal').style.display = 'none'; }
+
+async function approveProposal(proposalId, changeType, proposedDataStr) {
+    const proposedData = JSON.parse(proposedDataStr);
+    if (changeType === 'CREATE') {
+        const { error: insertErr } = await supabaseClient.from('members').insert([proposedData]);
+        if (insertErr) return alert("स्वीकृत गर्दा त्रुटि: " + insertErr.message);
+    }
+    await supabaseClient.from('member_proposals').update({ status: 'APPROVED' }).eq('id', proposalId);
+    alert("प्रस्ताव स्वीकृत भयो! रूख अपडेट हुँदैछ...");
+    openAdminModal();
+    loadDataFromSupabase();
+}
+
+async function rejectProposal(proposalId) {
+    if(!confirm("के तपाईं यो प्रस्ताव अस्वीकृत गर्न पक्का हुनुहुन्छ?")) return;
+    await supabaseClient.from('member_proposals').update({ status: 'REJECTED' }).eq('id', proposalId);
+    openAdminModal();
 }
 
 function openEditModal(id) {
@@ -1212,7 +1295,13 @@ function updateAuthState(user) {
     if (user) {
         authBtn.innerText = isAdmin ? '🛡️ एडमिन प्यानल' : '👤 ' + user.email.split('@')[0];
         // अहिलेलाई एडमिन र साधारण युजर दुवैलाई क्लिक गर्दा लगआउट सोध्ने बनाइएको छ (Step 5 मा प्यानल खोल्नेछौं)
-        authBtn.onclick = () => { if(confirm('लगआउट गर्न चाहनुहुन्छ?')) handleLogout(); };
+        authBtn.onclick = () => { 
+            if (isAdmin) {
+                openAdminModal();
+            } else {
+                if(confirm('लगआउट गर्न चाहनुहुन्छ?')) handleLogout(); 
+            }
+        };
         authBtn.style.background = isAdmin ? '#f39c12' : '#e2e8f0';
         authBtn.style.color = isAdmin ? 'white' : '#2c3e50';
     } else {
