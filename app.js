@@ -42,7 +42,7 @@ async function loadDataFromSupabase() {
             if (savedData) familyData = JSON.parse(savedData);
         }
     } catch (err) {
-        console.error("Database बाट डाटा ल्याउन समस्या भयो:", err);
+        console.error("Supabase Error Details:", err); // <-- यो नयाँ लाइन थप्नुहोस्
         const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2');
         if (savedData) familyData = JSON.parse(savedData);
     }
