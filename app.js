@@ -341,20 +341,39 @@ async function removeNode(id) {
 // --- Notifications Logic ---
 async function fetchNotifications() {
     if (!currentUser) return;
-    const { data, error } = await supabaseClient.from('notifications')
-        .select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
-    
-    if (error) return console.error(error);
-    
-    const unread = data.filter(n => !n.is_read).length;
     const badge = document.getElementById('notif-badge');
-    if (unread > 0) {
-        badge.innerText = unread;
-        badge.style.display = 'inline-block';
+    
+    if (isAdmin) {
+        // एडमिनको लागि: नयाँ प्रस्तावहरूको गन्ती गर्ने र घण्टीमा एडमिन प्यानल जोड्ने
+        const { data, error } = await supabaseClient.from('member_proposals').select('id').eq('status', 'PENDING');
+        if (error) return console.error(error);
+        
+        const pendingCount = data.length;
+        if (pendingCount > 0) {
+            badge.innerText = pendingCount;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+        // एडमिनले घण्टीमा क्लिक गर्दा सिधै Admin Panel खुल्ने
+        document.getElementById('notification-bell').onclick = openAdminModal; 
     } else {
-        badge.style.display = 'none';
+        // साधारण युजरको लागि: आफ्नै सूचनाहरू तान्ने
+        const { data, error } = await supabaseClient.from('notifications')
+            .select('*').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+        
+        if (error) return console.error(error);
+        
+        const unread = data.filter(n => !n.is_read).length;
+        if (unread > 0) {
+            badge.innerText = unread;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+        window.userNotifications = data; 
+        document.getElementById('notification-bell').onclick = openNotifications;
     }
-    window.userNotifications = data; 
 }
 
 async function openNotifications() {
@@ -362,22 +381,49 @@ async function openNotifications() {
     const list = document.getElementById('notif-list');
     const notifs = window.userNotifications || [];
     
-    if (notifs.length === 0) return list.innerHTML = '<p style="text-align:center; color:#7f8c8d;">कुनै नयाँ सूचना छैन।</p>';
+    if (notifs.length === 0) return list.innerHTML = '<p style="text-align:center; color:#7f8c8d;">कुनै सूचना छैन।</p>';
     
-    list.innerHTML = notifs.map(n => `
-        <div style="padding:10px; border-bottom:1px solid #eee; background:${n.is_read ? '#fff' : '#f0f9ff'};">
-            <p style="margin:0 0 5px 0; font-size:13px; color:#2c3e50;">${n.message}</p>
+    list.innerHTML = notifs.map(n => {
+        // सूचनाको रंग सेट गर्ने (अस्वीकृत रातो, स्वीकृत हरियो)
+        let bgColor = '#f0f9ff'; // डिफल्ट हल्का निलो
+        if (n.message.includes('अस्वीकृत')) bgColor = '#fdeded'; // हल्का रातो
+        else if (n.message.includes('स्वीकृत')) bgColor = '#e8f8f5'; // हल्का हरियो
+        
+        // पढिसकेपछि सेतो बनाउने
+        if (n.is_read) bgColor = '#ffffff'; 
+        
+        let unreadDot = n.is_read ? '' : '<span style="color:#e74c3c; font-size:18px; line-height:0; margin-right:5px;">•</span>';
+        
+        return `
+        <div style="padding:10px; margin-bottom:8px; border:1px solid #eee; border-radius:6px; background:${bgColor};">
+            <p style="margin:0; font-size:13px; color:#2c3e50;">${unreadDot}${n.message}</p>
         </div>
-    `).join('');
+        `;
+    }).join('');
     
-    // हेरिसकेपछि सबैलाई 'Read' (पढिएको) बनाउने
+    // हेरिसकेपछि सबैलाई 'Read' बनाउने
     const unreadIds = notifs.filter(n => !n.is_read).map(n => n.id);
     if (unreadIds.length > 0) {
         await supabaseClient.from('notifications').update({ is_read: true }).in('id', unreadIds);
         fetchNotifications(); 
     }
 }
+
 function closeNotifications() { document.getElementById('notif-modal').style.display = 'none'; }
+
+// सबै सूचनाहरू सधैंको लागि मेटाउने फङ्सन
+async function clearNotifications() {
+    if (!currentUser) return;
+    if (confirm("सबै सूचनाहरू स्थायी रूपमा हटाउन पक्का हुनुहुन्छ?")) {
+        const { error } = await supabaseClient.from('notifications').delete().eq('user_id', currentUser.id);
+        if (error) alert("त्रुटि: " + error.message);
+        else {
+            window.userNotifications = [];
+            openNotifications(); // मोडल रिफ्रेस गर्ने
+            fetchNotifications(); // घण्टीको गन्ती रिफ्रेस गर्ने
+        }
+    }
+}
 
 async function openAdminModal() {
     document.getElementById('admin-modal').style.display = 'block';
@@ -452,6 +498,7 @@ async function approveProposal(proposalId) {
         alert("प्रस्ताव स्वीकृत भयो! रूख अपडेट हुँदैछ...");
         openAdminModal();
         loadDataFromSupabase();
+        fetchNotifications(); // <-- यो लाइन थप्नुहोस्
     } catch (err) {
         alert("स्वीकृत गर्दा त्रुटि: " + err.message);
     }
@@ -465,13 +512,13 @@ async function rejectProposal(proposalId) {
     if (error) {
         alert("अस्वीकृत गर्दा त्रुटि: " + error.message);
     } else {
-        // --- नयाँ: सूचना पठाउने ---
         if (proposal) {
             let actionTxt = proposal.change_type === 'CREATE' ? 'नयाँ थप्ने' : (proposal.change_type === 'UPDATE' ? 'सम्पादन गर्ने' : 'हटाउने');
             let msg = `तपाईंको प्रस्ताव: ${actionTxt} (सदस्य: ${proposal.proposed_data.name || 'नाम नखुलेको'}) अस्वीकृत भयो।`;
             await supabaseClient.from('notifications').insert([{ user_id: proposal.submitted_by, message: msg }]);
         }
         openAdminModal();
+        fetchNotifications();
     }
 }
 
@@ -534,6 +581,7 @@ const dev2romMap = {
     'क':'k','ख':'kh','ग':'g','घ':'gh','ङ':'ng','च':'ch','छ':'chh','ज':'j','झ':'jh','ञ':'ny',
     'ट':'t','ठ':'th','ड':'d','ढ':'dh','ण':'n','त':'t','थ':'th','द':'d','ध':'dh','न':'n',
     'प':'p','फ':'ph','ब':'b','भ':'bh','म':'m','य':'y','र':'r','ल':'l','व':'b','श':'sh','ष':'shh','स':'s','ह':'h',
+    'क्ष':'ksh','त्र':'tr','ज्ञ':'jn','श्र':'shr','ॐ':'om','ऋ':'ri',
     'ा':'a','ि':'i','ी':'i','ु':'u','ू':'u','े':'e','ै':'ai','ो':'o','ौ':'au','ं':'am','ः':'ah','ृ':'ri','्':''
 };
 
