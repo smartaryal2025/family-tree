@@ -1292,9 +1292,10 @@ function updateAuthState(user) {
     isAdmin = user && user.email === ADMIN_EMAIL;
     
     const authBtn = document.getElementById('authBtn');
+    const emailSpan = document.getElementById('loggedInUserEmail');
+    
     if (user) {
-        authBtn.innerText = isAdmin ? '🛡️ एडमिन प्यानल' : '👤 ' + user.email.split('@')[0];
-        // अहिलेलाई एडमिन र साधारण युजर दुवैलाई क्लिक गर्दा लगआउट सोध्ने बनाइएको छ (Step 5 मा प्यानल खोल्नेछौं)
+        authBtn.innerText = isAdmin ? '🛡️ एडमिन प्यानल' : 'लगआउट';
         authBtn.onclick = () => { 
             if (isAdmin) {
                 openAdminModal();
@@ -1302,13 +1303,19 @@ function updateAuthState(user) {
                 if(confirm('लगआउट गर्न चाहनुहुन्छ?')) handleLogout(); 
             }
         };
-        authBtn.style.background = isAdmin ? '#f39c12' : '#e2e8f0';
-        authBtn.style.color = isAdmin ? 'white' : '#2c3e50';
+        authBtn.style.background = isAdmin ? '#f39c12' : '#e74c3c';
+        authBtn.style.color = 'white';
+        
+        emailSpan.innerText = '👤 ' + user.email;
+        emailSpan.style.display = 'inline-block';
     } else {
         authBtn.innerText = 'लगइन / दर्ता';
         authBtn.onclick = openAuthModal;
         authBtn.style.background = '#f4f6fa';
         authBtn.style.color = '#2c3e50';
+        
+        emailSpan.innerText = '';
+        emailSpan.style.display = 'none';
     }
 }
 
@@ -1359,5 +1366,19 @@ async function handleLogin() {
 }
 
 async function handleLogout() {
-    await supabaseClient.auth.signOut();
+    try {
+        await supabaseClient.auth.signOut();
+    } catch (error) {
+        console.error("लगआउट गर्दा समस्या भयो:", error);
+    }
+    
+    // खुल्ला भएका सबै मोडलहरू बन्द गर्ने
+    const adminModal = document.getElementById('admin-modal');
+    if (adminModal) adminModal.style.display = 'none';
+    
+    const authModal = document.getElementById('auth-modal');
+    if (authModal) authModal.style.display = 'none';
+    
+    // पेजलाई पूर्ण रूपमा रिफ्रेस गर्ने
+    window.location.reload();
 }

@@ -20,12 +20,18 @@
     <div class="toolbar-wrapper" data-html2canvas-ignore>
         <div class="header-panel">
             
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()">
-                <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
-                <div class="suggestions-box" id="searchSuggestions"></div>
+            <!-- देब्रेपट्टि: सर्च र लगइन/इमेल एउटै लाइनमा -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <div class="search-container" style="flex: 0 1 200px;">
+                    <input type="text" id="searchInput" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()">
+                    <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
+                    <div class="suggestions-box" id="searchSuggestions"></div>
+                </div>
+                <button class="header-btn" id="authBtn" onclick="openAuthModal()" style="width: auto; padding: 0 12px; flex-shrink: 0;">लगइन / दर्ता</button>
+                <span id="loggedInUserEmail" style="font-size: 13px; color: #183153; font-weight: bold; display: none; white-space: nowrap;"></span>
             </div>
-				<button class="header-btn" id="authBtn" onclick="openAuthModal()">लगइन / दर्ता</button>
+            
+            <!-- दाहिनेपट्टि: बाँकी बटनहरू -->
             <div class="header-buttons-right">
                 <button class="header-btn" onclick="openAddModal()">+ नयाँ सदस्य</button>
                 <button class="header-btn" onclick="expandAll()">सबै देखाउने</button>
