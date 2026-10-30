@@ -1188,3 +1188,87 @@ async function executeNativePrint() {
 document.addEventListener('DOMContentLoaded', () => {
     loadDataFromSupabase();
 });
+
+// --- AUTHENTICATION LOGIC ---
+let currentUser = null;
+let isAdmin = false;
+const ADMIN_EMAIL = 'support@kishoraryal.com.np'; 
+
+// पेज लोड हुँदा युजर लगइन छ कि छैन जाँच्ने
+supabaseClient.auth.getSession().then(({ data: { session } }) => {
+    updateAuthState(session?.user);
+});
+
+// लगइन वा लगआउट हुँदा रियलटाइममा थाहा पाउने
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+    updateAuthState(session?.user);
+});
+
+function updateAuthState(user) {
+    currentUser = user;
+    isAdmin = user && user.email === ADMIN_EMAIL;
+    
+    const authBtn = document.getElementById('authBtn');
+    if (user) {
+        authBtn.innerText = isAdmin ? '🛡️ एडमिन प्यानल' : '👤 ' + user.email.split('@')[0];
+        // अहिलेलाई एडमिन र साधारण युजर दुवैलाई क्लिक गर्दा लगआउट सोध्ने बनाइएको छ (Step 5 मा प्यानल खोल्नेछौं)
+        authBtn.onclick = () => { if(confirm('लगआउट गर्न चाहनुहुन्छ?')) handleLogout(); };
+        authBtn.style.background = isAdmin ? '#f39c12' : '#e2e8f0';
+        authBtn.style.color = isAdmin ? 'white' : '#2c3e50';
+    } else {
+        authBtn.innerText = 'लगइन / दर्ता';
+        authBtn.onclick = openAuthModal;
+        authBtn.style.background = '#f4f6fa';
+        authBtn.style.color = '#2c3e50';
+    }
+}
+
+function openAuthModal() {
+    document.getElementById('auth-email').value = '';
+    document.getElementById('auth-password').value = '';
+    document.getElementById('auth-message').innerText = '';
+    document.getElementById('auth-modal').style.display = 'block';
+}
+
+function closeAuthModal() {
+    document.getElementById('auth-modal').style.display = 'none';
+}
+
+async function handleSignup() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const msg = document.getElementById('auth-message');
+    msg.style.color = '#e74c3c';
+    
+    if (!email || password.length < 6) return msg.innerText = 'सही इमेल र कम्तीमा ६ अक्षरको पासवर्ड राख्नुहोस्।';
+    
+    msg.innerText = 'दर्ता हुँदैछ...';
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    
+    if (error) {
+        msg.innerText = error.message;
+    } else {
+        msg.style.color = '#27ae60';
+        msg.innerText = 'दर्ता सफल! कृपया लगइन गर्नुहोस्। (वा इमेल भेरिफाई गर्नुहोस्)';
+    }
+}
+
+async function handleLogin() {
+    const email = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const msg = document.getElementById('auth-message');
+    
+    msg.style.color = '#e74c3c';
+    msg.innerText = 'लगइन हुँदैछ...';
+    
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+        msg.innerText = "लगइन असफल: इमेल वा पासवर्ड मिलेन।";
+    } else {
+        closeAuthModal();
+    }
+}
+
+async function handleLogout() {
+    await supabaseClient.auth.signOut();
+}
