@@ -33,6 +33,8 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 });
 
 function updateAuthState(user) {
+    const syncBtn = document.getElementById('sync-server-btn');
+    if (syncBtn) syncBtn.style.display = isAdmin ? 'block' : 'none';
     currentUser = user;
     isAdmin = user && user.email === ADMIN_EMAIL;
     const authBtn = document.getElementById('authBtn');
@@ -694,6 +696,45 @@ function importJSON(event) {
 }
 function exportDataJS() { const dataStr = "const defaultFamilyData = " + JSON.stringify(familyData, null, 4) + ";"; const blob = new Blob([dataStr], { type: "application/javascript" }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = "data.js"; a.click(); URL.revokeObjectURL(url); }
 function factoryReset() { if(confirm("सबै डेटा मेटेर सुरुको अवस्थामा लैजान चाहनुहुन्छ?")) { localStorage.removeItem('aryalFamilyTreeDataV1_2'); location.reload(); } }
+
+// --- Server Sync (Admin Only Data Recovery) ---
+async function syncToServer() {
+    if (!isAdmin) return;
+    
+    if (!confirm("⚠️ चेतावनी: के तपाईं हाल स्क्रिनमा देखिएको डेटालाई लाइभ सर्भरमा सेभ (Overwrite) गर्न पक्का हुनुहुन्छ?\nयसले सर्भरको पुरानो सबै डेटा सधैंको लागि मेटाउनेछ!")) return;
+    
+    const btn = document.getElementById('sync-server-btn');
+    const originalText = btn.innerText;
+    btn.innerText = "सिंक हुँदैछ..."; 
+    btn.disabled = true;
+
+    try {
+        // ब्राउजरको डाटालाई डाटाबेसले बुझ्ने फर्म्याटमा बदल्ने
+        const dbReadyData = familyData.filter(d => d.id !== 'DUMMY_ROOT').map(d => ({
+            id: d.id,
+            name: d.name || "",
+            gender: d.gender,
+            parent_id: (d.parentId === 'DUMMY_ROOT' || !d.parentId) ? null : d.parentId,
+            mother_name: d.motherName || null,
+            spouses: d.spouses || [],
+            hierarchy_order: d.hierarchyOrder || 99,
+            birth_date: d.birthDate || null,
+            death_date: d.deathDate || null
+        }));
+
+        // Supabase को RPC फङ्सन कल गर्ने
+        const { error } = await supabaseClient.rpc('sync_database', { new_data: dbReadyData });
+        if (error) throw error;
+
+        alert("🎉 बधाई छ! डेटा सफलतापूर्वक लाइभ सर्भरमा रिस्टोर भयो।");
+        loadDataFromSupabase(); // रिफ्रेस गरेर नयाँ डाटा देखाउने
+    } catch (err) {
+        alert("सर्भरमा सिंक गर्दा त्रुटि: " + err.message);
+    } finally {
+        btn.innerText = originalText; 
+        btn.disabled = false;
+    }
+}
 
 // --- D3 Zoom & Camera ---
 const viewport = d3.select("#tree-viewport");
