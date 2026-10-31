@@ -328,9 +328,20 @@ async function saveNewNode() {
         if (error) return alert("त्रुटि: " + error.message);
         alert("नयाँ सदस्य सफलतापूर्वक थपियो!"); closeAddModal(); loadDataFromSupabase();
     } else {
-        let proposalData = { ...newNode, parent_id: parentId, hierarchy_order: hierarchy, mother_name: motherName, birth_date: birthDate, death_date: deathDate };
+        // 🌟 यहाँ सुधार गरिएको छ: Database ले बुझ्ने snake_case कोलम मात्र पठाउने
+        let proposalData = { 
+            id: newNode.id, 
+            name: name,
+            parent_id: parentId, 
+            gender: gender, 
+            spouses: [...tempAddSpouses],
+            hierarchy_order: hierarchy, 
+            mother_name: motherName || null, 
+            birth_date: birthDate || null, 
+            death_date: deathDate || null 
+        };
         
-        // 🌟 Submitter Details Added
+        // Submitter Details Added
         proposalData._submitter_name = currentUser.user_metadata?.full_name || '';
         proposalData._submitter_phone = currentUser.user_metadata?.phone || '';
         proposalData._submitter_email = currentUser.email || '';
@@ -465,7 +476,16 @@ async function approveProposal(proposalId) {
     if (!proposal) return alert("प्रस्ताव भेटिएन!");
     
     const propData = { ...proposal.proposed_data };
-    delete propData._submitter_name; delete propData._submitter_phone; delete propData._submitter_email;
+    
+    // 🌟 यहाँ सुधार गरिएको छ: नचाहिने सबै Meta डाटा र camelCase की (Key) हरू डाटाबेसमा पठाउनुअघि हटाउने
+    delete propData._submitter_name; 
+    delete propData._submitter_phone; 
+    delete propData._submitter_email;
+    delete propData.parentId;
+    delete propData.hierarchyOrder;
+    delete propData.motherName;
+    delete propData.birthDate;
+    delete propData.deathDate;
     
     try {
         if (proposal.change_type === 'CREATE') {
