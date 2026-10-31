@@ -23,7 +23,14 @@ let localProposalsQueue = []; // Batch Submit Queue
 
 // --- Authentication Logic ---
 supabaseClient.auth.getSession().then(({ data: { session } }) => updateAuthState(session?.user));
-supabaseClient.auth.onAuthStateChange((_event, session) => updateAuthState(session?.user));
+
+supabaseClient.auth.onAuthStateChange((event, session) => {
+    updateAuthState(session?.user);
+    // इमेलको रिसेट लिङ्कमा क्लिक गर्दा यो इभेन्ट फायर हुन्छ
+    if (event === 'PASSWORD_RECOVERY') {
+        document.getElementById('recovery-modal').style.display = 'block';
+    }
+});
 
 function updateAuthState(user) {
     currentUser = user;
@@ -72,10 +79,25 @@ function openAuthModal() {
 }
 
 function showLoginOnly() {
+    document.getElementById('auth-modal-title').innerText = 'लगइन / दर्ता';
     document.getElementById('signup-fields').style.display = 'none';
+    document.getElementById('password-group').style.display = 'block';
     document.getElementById('login-btn-main').style.display = 'block';
+    document.getElementById('signup-btn-main').style.display = 'block';
     document.getElementById('signup-btn-main').innerText = 'नयाँ दर्ता (Sign Up)';
+    document.getElementById('reset-btn-main').style.display = 'none';
     document.getElementById('back-to-login-btn').style.display = 'none';
+    document.getElementById('auth-message').innerText = '';
+}
+
+function showForgotPassword() {
+    document.getElementById('auth-modal-title').innerText = 'पासवर्ड रिसेट';
+    document.getElementById('signup-fields').style.display = 'none';
+    document.getElementById('password-group').style.display = 'none';
+    document.getElementById('login-btn-main').style.display = 'none';
+    document.getElementById('signup-btn-main').style.display = 'none';
+    document.getElementById('reset-btn-main').style.display = 'block';
+    document.getElementById('back-to-login-btn').style.display = 'block';
     document.getElementById('auth-message').innerText = '';
 }
 
@@ -105,12 +127,25 @@ async function handleSignup() {
     if (!email || password.length < 6 || !name || !phone) return msg.innerText = 'सबै विवरणहरू अनिवार्य रूपमा भर्नुहोस्।';
     
     msg.innerText = 'दर्ता हुँदैछ...';
-    const { error } = await supabaseClient.auth.signUp({ 
+    
+    const { data, error } = await supabaseClient.auth.signUp({ 
         email, password, options: { data: { full_name: name, phone: phone }, emailRedirectTo: window.location.origin }
     });
     
-    if (error) { msg.innerText = error.message; } 
-    else { msg.style.color = '#27ae60'; msg.innerText = 'दर्ता सफल! अब लगइन गर्नुहोस्।'; setTimeout(showLoginOnly, 1500); }
+    if (error) { 
+        if (error.message.includes("User already registered") || error.status === 422) {
+            msg.innerText = "यो इमेलबाट पहिल्यै एकाउन्ट बनिसकेको छ, कृपया लगइन गर्नुहोस्।";
+        } else {
+            msg.innerText = "त्रुटि: " + error.message;
+        }
+    } else if (data && data.user && data.user.identities && data.user.identities.length === 0) {
+        msg.style.color = '#e74c3c';
+        msg.innerText = "यो इमेलबाट पहिल्यै एकाउन्ट बनिसकेको छ, कृपया लगइन गर्नुहोस्।";
+    } else { 
+        msg.style.color = '#27ae60'; 
+        msg.innerText = 'दर्ता सफल! अब लगइन गर्नुहोस्।'; 
+        setTimeout(showLoginOnly, 2000); 
+    }
 }
 
 async function handleLogin() {
@@ -121,6 +156,33 @@ async function handleLogin() {
     
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if (error) msg.innerText = "लगइन असफल: इमेल वा पासवर्ड मिलेन।"; else closeAuthModal();
+}
+
+async function handlePasswordResetRequest() {
+    const email = document.getElementById('auth-email').value.trim();
+    const msg = document.getElementById('auth-message');
+    if (!email) return msg.innerText = 'कृपया आफ्नो इमेल राख्नुहोस्।';
+    
+    msg.style.color = '#3498db'; msg.innerText = 'लिङ्क पठाउँदै...';
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+    
+    if (error) { msg.style.color = '#e74c3c'; msg.innerText = error.message; } 
+    else { msg.style.color = '#27ae60'; msg.innerText = 'पासवर्ड रिसेट गर्ने लिङ्क तपाईंको इमेलमा पठाइएको छ।'; }
+}
+
+async function saveRecoveredPassword() {
+    const newPassword = document.getElementById('recovery-password').value;
+    const msg = document.getElementById('recovery-message');
+    if (newPassword.length < 6) return msg.innerText = "पासवर्ड कम्तीमा ६ अक्षरको हुनुपर्छ।";
+    
+    msg.style.color = '#3498db'; msg.innerText = 'सेभ हुँदैछ...';
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    
+    if (error) { msg.style.color = '#e74c3c'; msg.innerText = error.message; } 
+    else {
+        msg.style.color = '#27ae60'; msg.innerText = 'पासवर्ड सफलतापूर्वक परिवर्तन भयो!';
+        setTimeout(() => { document.getElementById('recovery-modal').style.display = 'none'; }, 2000);
+    }
 }
 
 async function handleLogout() {
@@ -134,6 +196,7 @@ function openProfileModal() {
     if(!currentUser) return;
     document.getElementById('prof-name').value = currentUser.user_metadata?.full_name || '';
     document.getElementById('prof-phone').value = currentUser.user_metadata?.phone || '';
+    document.getElementById('prof-password').value = ''; // Reset Password Field
     document.getElementById('prof-message').innerText = '';
     document.getElementById('profile-modal').style.display = 'block';
 }
@@ -141,12 +204,39 @@ function openProfileModal() {
 async function saveProfile() {
     const name = document.getElementById('prof-name').value.trim();
     const phone = document.getElementById('prof-phone').value.trim();
+    const newPassword = document.getElementById('prof-password').value;
     const msg = document.getElementById('prof-message');
     msg.style.color = '#3498db'; msg.innerText = 'सेभ हुँदैछ...';
     
-    const { data, error } = await supabaseClient.auth.updateUser({ data: { full_name: name, phone: phone } });
+    let updateData = { data: { full_name: name, phone: phone } };
+    if (newPassword) {
+        if (newPassword.length < 6) return msg.innerText = "नयाँ पासवर्ड कम्तीमा ६ अक्षरको हुनुपर्छ।";
+        updateData.password = newPassword;
+    }
+
+    const { data, error } = await supabaseClient.auth.updateUser(updateData);
     if(error) { msg.style.color = '#e74c3c'; msg.innerText = error.message; } 
-    else { msg.style.color = '#27ae60'; msg.innerText = 'प्रोफाइल अपडेट भयो!'; currentUser = data.user; updateAuthState(currentUser); setTimeout(closeProfileModal, 1000); }
+    else { 
+        msg.style.color = '#27ae60'; msg.innerText = 'प्रोफाइल अपडेट भयो!'; 
+        currentUser = data.user; updateAuthState(currentUser); 
+        setTimeout(closeProfileModal, 1000); 
+    }
+}
+
+async function deleteAccount() {
+    if (!confirm("तपाईंको एकाउन्ट र प्रस्तावहरू सधैंको लागि मेटिनेछन्। के तपाईं पक्का हुनुहुन्छ?")) return;
+    if (!confirm("यो कार्य पछि फर्काउन सकिँदैन। अन्तिम पटक पक्का गर्नुहोस्!")) return;
+    
+    const msg = document.getElementById('prof-message');
+    msg.style.color = '#e74c3c'; msg.innerText = 'एकाउन्ट डिलिट गरिँदैछ...';
+    
+    const { error } = await supabaseClient.rpc('delete_user_account');
+    if (error) {
+        msg.innerText = "त्रुटि: " + error.message;
+    } else {
+        alert("तपाईंको एकाउन्ट सफलतापूर्वक मेटियो।");
+        handleLogout();
+    }
 }
 
 // --- Data Fetching (Crash Safe) ---

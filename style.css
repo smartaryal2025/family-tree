@@ -207,4 +207,10 @@ body {
     .header-left, .header-center, .header-right { width: 100%; justify-content: center; }
     .search-container { max-width: 100%; }
     .menu-bar { justify-content: flex-start; padding: 10px; overflow-x: auto; }
+    
+    /* 🌟 Mobile Export Preview & Buttons Fix 🌟 */
+    #export-modal .modal-content { height: 95vh !important; padding: 15px; overflow-y: auto; }
+    .page-preview-box img { max-height: 50vh !important; } /* मोबाइलमा इमेजको उचाइ घटाएर बटनलाई ठाउँ दिने */
+    #export-buttons-container { flex-wrap: wrap !important; white-space: normal !important; overflow-x: hidden; justify-content: space-between; }
+    .export-btn-action { flex: 1 1 calc(50% - 10px) !important; font-size: 12px; padding: 8px; margin-bottom: 5px; } /* बटनहरू २-२ वटा गरेर २ लाइनमा चिटिक्क बस्ने */
 }
