@@ -16,7 +16,7 @@
     <header class="main-header">
         <div class="header-left">
             <div class="search-container">
-                <input type="text" id="searchInput" name="search_fake_name" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()" autocomplete="new-password" spellcheck="false"> 	
+                <input type="search" id="searchInput" name="search_member_box" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()" autocomplete="off" spellcheck="false" role="presentation">
                 <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
                 <div class="suggestions-box" id="searchSuggestions"></div>
             </div>
@@ -348,5 +348,12 @@
     </div>
 
     <script src="app.js"></script>
+	
+	<!-- Footer Links -->
+    <div style="position: fixed; bottom: 5px; right: 10px; font-size: 11px; z-index: 1000; background: rgba(255,255,255,0.85); padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1;">
+        &copy; 2026 Kishor Aryal | 
+        <a href="disclaimer.html" style="color: #3498db; text-decoration: none; font-weight: bold;">Disclaimer</a>
+    </div>
+	
 </body>
 </html>
