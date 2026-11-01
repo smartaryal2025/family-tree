@@ -15,7 +15,18 @@
     <!-- व्यवस्थित हेडर -->
     <header class="main-header">
         <div class="header-left">
-            <!-- सर्च बक्स यहाँबाट हटाएर तल चार्टमाथि सारिएको छ -->
+            <div class="search-container">
+                <!-- 🌟 अचुक उपाय: छुट्टै Form, readonly र फोकस गर्दा readonly हट्ने लजिक 🌟 -->
+                <form autocomplete="off" onsubmit="event.preventDefault();" style="margin: 0; padding: 0; width: 100%;">
+                    <input type="search" id="searchInput" name="safe_search_box" placeholder="🔍 नाम खोज्नुहोस्..." 
+                           readonly 
+                           onfocus="this.removeAttribute('readonly'); handleSearchInput();" 
+                           oninput="handleSearchInput()" 
+                           autocomplete="off" spellcheck="false" data-lpignore="true">
+                </form>
+                <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
+                <div class="suggestions-box" id="searchSuggestions"></div>
+            </div>
         </div>
         
         <div class="header-center">
@@ -29,9 +40,7 @@
             </span>
             <span id="loggedInUserEmail"></span>
             
-            <!-- क्लिन लगआउट बटन (रातो हटाइएको) -->
             <button id="logoutBtn" class="logout-btn" onclick="handleLogout()" style="display:none;" title="लगआउट">लगआउट</button>
-            
             <button class="header-btn auth-btn" id="authBtn" onclick="openAuthModal()">लगइन / दर्ता</button>
         </div>
     </header>
@@ -66,15 +75,6 @@
     <!-- Tree Viewport -->
     <div id="export-area">
         <h1 id="export-title" style="display:none; color:#183153; margin: 20px 0;">अर्याल वंशावली</h1>
-        
-        <!-- 🌟 Floating Search Box (वंशावली चार्टमाथि फिक्स्ड) 🌟 -->
-        <div class="floating-search" data-html2canvas-ignore>
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()" autocomplete="new-password" spellcheck="false">
-                <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
-                <div class="suggestions-box" id="searchSuggestions"></div>
-            </div>
-        </div>
 
         <div id="tree-viewport">
             <div id="zoom-layer">
