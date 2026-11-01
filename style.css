@@ -21,9 +21,27 @@ body {
     gap: 15px;
 }
 .header-left { flex: 1; min-width: 250px; display: flex; justify-content: flex-start; }
-.header-center { flex: 1; min-width: 200px; text-align: center; }
-.header-center h1 { margin: 0; font-size: 22px; }
-.header-center p { margin: 0; font-size: 12px; color: #d5e2f5; }
+
+/* Header Center (Logo & Text) */
+.header-center { 
+    flex: 1; 
+    min-width: 250px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 12px; 
+}
+.header-logo { 
+    width: 56px; 
+    height: 56px; 
+    object-fit: contain; 
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.header-center-text { text-align: left; }
+.header-center-text h1 { margin: 0; font-size: 22px; line-height: 1.2; }
+.header-center-text p { margin: 0; font-size: 12px; color: #d5e2f5; }
+
 .header-right { flex: 1; min-width: 250px; display: flex; justify-content: flex-end; align-items: center; }
 
 /* Search Area */
@@ -215,6 +233,11 @@ body {
     .menu-btn, .toggle-label { font-size: 11px; padding: 5px; flex: 1 1 calc(25% - 6px); text-align: center; white-space: nowrap; letter-spacing: -0.3px; }
     .dropdown { flex: 1 1 calc(25% - 6px); }
     .dropdown > .menu-btn { width: 100%; }
+
+    /* Mobile Header Logo Adjustment */
+    .header-center { flex-direction: row; gap: 8px; justify-content: center; }
+    .header-logo { width: 44px; height: 44px; }
+    .header-center-text h1 { font-size: 18px; }
     
     /* 🌟 Mobile Export Preview Fix (उचाइ अझै घटाइएको) 🌟 */
     #export-modal .modal-content { height: 75vh !important; margin: 10vh auto !important; padding: 10px; }

@@ -3,20 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>अर्याल वंशावली - V1.2</title>
+    <title>अर्याल वंशावली - V1.3</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="style.css">
+    <!-- Favicon & App Icons -->
+    <link rel="icon" type="image/x-icon" href="logo/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="logo/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="logo/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png">
+    <link rel="manifest" href="manifest.json"> 
 </head>
 <body>
 
-    <!-- व्यवस्थित हेडर -->
     <header class="main-header">
         <div class="header-left">
             <div class="search-container">
-                <!-- 🌟 अचुक उपाय: छुट्टै Form, readonly र फोकस गर्दा readonly हट्ने लजिक 🌟 -->
                 <form autocomplete="off" onsubmit="event.preventDefault();" style="margin: 0; padding: 0; width: 100%;">
                     <input type="search" id="searchInput" name="safe_search_box" placeholder="🔍 नाम खोज्नुहोस्..." 
                            readonly 
@@ -30,8 +34,11 @@
         </div>
         
         <div class="header-center">
-            <h1>अर्याल वंशावली</h1>
-            <p id="root-ancestor-label">मूल पुर्खा: -</p>
+            <img src="logo/android-chrome-192x192.png" alt="अर्याल वंशावली लोगो" class="header-logo">
+            <div class="header-center-text">
+                <h1>अर्याल वंशावली</h1>
+                <p id="root-ancestor-label">मूल पुर्खा: -</p>
+            </div>
         </div>
         
         <div class="header-right">
@@ -45,7 +52,6 @@
         </div>
     </header>
 
-    <!-- क्लिन मेनु (Responsive) -->
     <div class="toolbar-wrapper" data-html2canvas-ignore>
         <div class="header-panel">
             <div class="header-buttons-right">
@@ -93,8 +99,6 @@
     <div id="print-container"></div>
     <div id="details-panel" class="details-panel"></div>
     <div id="drag-ghost-element" class="drag-ghost">सारिँदै छ...</div>
-    
-    <!-- Batch Submit Button -->
     <button id="batch-submit-btn" onclick="submitBatchProposals()">प्रस्तावहरू पेस गर्नुहोस् (0)</button>
 
     <!-- Export Modal -->
@@ -118,7 +122,6 @@
             </div>
             <div id="multi-page-preview"></div>
             
-            <!-- क्लिन र मोडर्न डाउनलोड बटनहरू (पूरा नामसहित र एकै लाइनमा अटाउने) -->
             <div id="export-buttons-container" style="display: none; flex-wrap: nowrap; gap: 15px; justify-content: center; margin-top: 15px; width: 100%; overflow-x: auto; padding-bottom: 5px; white-space: nowrap;">
                 <button class="export-btn-action" onclick="handleDownloadSingle('png')">Download PNG</button>
                 <button class="export-btn-action" onclick="handleDownloadSingle('pdf')">Download PDF</button>

@@ -253,14 +253,14 @@ async function loadDataFromSupabase() {
                 spouses: d.spouses || [], hierarchyOrder: d.hierarchy_order || 99, birthDate: d.birth_date, deathDate: d.death_date
             }));
             nextId = Math.max(...familyData.map(d => d.id), 0) + 1;
-            localStorage.setItem('aryalFamilyTreeDataV1_2', JSON.stringify(familyData));
+            localStorage.setItem('aryalFamilyTreeDataV1_3', JSON.stringify(familyData));
         } else {
-            const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2');
+            const savedData = localStorage.getItem('aryalFamilyTreeDataV1_3');
             familyData = savedData ? (JSON.parse(savedData) || []) : [];
         }
     } catch (err) {
         console.error("Supabase Error:", err);
-        const savedData = localStorage.getItem('aryalFamilyTreeDataV1_2');
+        const savedData = localStorage.getItem('aryalFamilyTreeDataV1_3');
         familyData = savedData ? (JSON.parse(savedData) || []) : [];
     }
     
@@ -581,8 +581,28 @@ const dev2romMap = {
 
 function normalizeForSearch(text) {
     if(!text) return "";
-    let t = text.replace(/क्ष/g, 'ksh').replace(/त्र/g, 'tr').replace(/ज्ञ/g, 'jn').replace(/श्र/g, 'shr').replace(/ॐ/g, 'om');
+    
+    // १. सबै प्रकारका अदृश्य क्यारेक्टर (ZWJ, ZWNJ, Zero-width spaces) हटाउने
+    let t = text.replace(/[\u200B-\u200F\uFEFF]/g, '');
+    
+    // २. हलन्त + र (्र) को ग्यारेन्टी म्यापिङ (यसले pra, kra, khra आदि सबैलाई समेट्छ)
+    const conjuncts = {
+        'प्र':'pr', 'क्र':'kr', 'ख्र':'khr', 'ग्र':'gr', 'घ्र':'ghr', 
+        'च्र':'chr', 'छ्र':'chhr', 'ज्र':'jr', 'झ्र':'jhr', 'ट्र':'tr', 
+        'ठ्र':'thr', 'ड्र':'dr', 'ढ्र':'dhr', 'त्र':'tr', 'थ्र':'thr', 
+        'द्र':'dr', 'ध्र':'dhr', 'न्र':'nr', 'फ्र':'phr', 'ब्र':'br', 
+        'भ्र':'bhr', 'म्र':'mr', 'व्र':'vr', 'स्र':'sr', 'ह्र':'hr',
+        'क्ष':'ksh', 'ज्ञ':'jn', 'श्र':'shr', 'ॐ':'om'
+    };
+    
+    for (let key in conjuncts) {
+        t = t.split(key).join(conjuncts[key]);
+    }
+    
+    // ३. बाँकी अक्षरहरूलाई character-by-character म्याप गर्ने
     let mapped = t.split('').map(char => dev2romMap[char] || char).join('').toLowerCase();
+    
+    // ४. स्वर वर्णहरू (Vowels) हटाएर Fuzzy बनाउने
     return mapped.replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/[vb]/g, 'w').replace(/a/g, ''); 
 }
 
@@ -590,7 +610,9 @@ function handleSearchInput() {
     const input = document.getElementById('searchInput');
     const clearBtn = document.getElementById('searchClear');
     const suggestionsBox = document.getElementById('searchSuggestions');
-    const rawQuery = input.value.trim().toLowerCase();
+    
+    // युजरले टाइप गरेको टेक्स्ट (Search Query) बाट पनि अदृश्य क्यारेक्टर हटाउने
+    const rawQuery = input.value.trim().toLowerCase().replace(/[\u200B-\u200F\uFEFF]/g, '');
     
     const fuzzyQuery = rawQuery.replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/[vb]/g, 'w').replace(/a/g, ''); 
     
@@ -598,7 +620,8 @@ function handleSearchInput() {
     else { clearBtn.style.display = 'none'; suggestionsBox.style.display = 'none'; return; }
 
     const results = familyData.filter(d => d.id !== 'DUMMY_ROOT' && d.name).filter(d => {
-        const nameDev = d.name.toLowerCase();
+        // डाटाबेसमा भएको नामबाट पनि देवनागरी सर्चअघि अदृश्य क्यारेक्टर हटाउने
+        const nameDev = d.name.toLowerCase().replace(/[\u200B-\u200F\uFEFF]/g, '');
         const nameRom = normalizeForSearch(d.name);
         return nameDev.includes(rawQuery) || nameRom.includes(fuzzyQuery);
     });
@@ -710,12 +733,12 @@ function importJSON(event) {
     reader.onload = function(e) {
         try {
             const importedData = JSON.parse(e.target.result);
-            if (Array.isArray(importedData)) { familyData = importedData; nextId = Math.max(...familyData.map(d => d.id)) + 1; localStorage.setItem('aryalFamilyTreeDataV1_2', JSON.stringify(familyData)); renderTree(true); setTimeout(() => alert("ब्याकअप लोड भयो!"), 100); }
+            if (Array.isArray(importedData)) { familyData = importedData; nextId = Math.max(...familyData.map(d => d.id)) + 1; localStorage.setItem('aryalFamilyTreeDataV1_3', JSON.stringify(familyData)); renderTree(true); setTimeout(() => alert("ब्याकअप लोड भयो!"), 100); }
         } catch(err) { alert("Invalid JSON file."); }
     }; reader.readAsText(file); event.target.value = ''; 
 }
 function exportDataJS() { const dataStr = "const defaultFamilyData = " + JSON.stringify(familyData, null, 4) + ";"; const blob = new Blob([dataStr], { type: "application/javascript" }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = "data.js"; a.click(); URL.revokeObjectURL(url); }
-function factoryReset() { if(confirm("सबै डेटा मेटेर सुरुको अवस्थामा लैजान चाहनुहुन्छ?")) { localStorage.removeItem('aryalFamilyTreeDataV1_2'); location.reload(); } }
+function factoryReset() { if(confirm("सबै डेटा मेटेर सुरुको अवस्थामा लैजान चाहनुहुन्छ?")) { localStorage.removeItem('aryalFamilyTreeDataV1_3'); location.reload(); } }
 
 // --- Server Sync (Admin Only Data Recovery) ---
 async function syncToServer() {
