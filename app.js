@@ -317,6 +317,10 @@ async function saveNewNode() {
     if (parentIdVal === "") return alert("कृपया पिता छान्नुहोस्।");
     const parentId = parentIdVal === "null" ? null : parseInt(parentIdVal);
     
+    // 🌟 अचुक समाधान: डुप्लिकेट ID बन्न नदिन सबैभन्दा ठूलो ID पत्ता लगाएर मात्र अगाडि बढ्ने
+    const currentMax = familyData.length > 0 ? Math.max(...familyData.map(d => d.id)) : 0;
+    if (nextId <= currentMax) { nextId = currentMax + 1; }
+    
     let newNode = { id: nextId++, name, parentId, gender, spouses: [...tempAddSpouses], hierarchyOrder: hierarchy };
     if(motherName !== "") newNode.motherName = motherName;
     if(birthDate !== "") newNode.birthDate = birthDate;
@@ -328,7 +332,6 @@ async function saveNewNode() {
         if (error) return alert("त्रुटि: " + error.message);
         alert("नयाँ सदस्य सफलतापूर्वक थपियो!"); closeAddModal(); loadDataFromSupabase();
     } else {
-        // 🌟 यहाँ सुधार गरिएको छ: Database ले बुझ्ने snake_case कोलम मात्र पठाउने
         let proposalData = { 
             id: newNode.id, 
             name: name,
@@ -411,6 +414,20 @@ async function removeNode(id) {
     }
 }
 
+// --- Helper function for Hierarchy Names (जेठो, माइलो देखाउन) ---
+function getOrderName(order, gender) {
+    if (order === null || order === undefined || order === "") return 'छैन';
+    const isF = (gender === 'F' || gender === 'female');
+    
+    if (order == 99) return isF ? 'कान्छी' : 'कान्छो';
+    
+    const maleNames = { 1: 'जेठो', 2: 'माइलो', 3: 'साँहिलो', 4: 'काइँलो', 5: 'ठाइँलो', 6: 'अन्तरे', 7: 'जन्तरे', 8: 'मन्तरे' };
+    const femaleNames = { 1: 'जेठी', 2: 'माइली', 3: 'साँहिली', 4: 'काइँली', 5: 'ठाइँली', 6: 'अन्तरी', 7: 'जन्तरी', 8: 'मन्तरी' };
+    
+    let nameMap = isF ? femaleNames : maleNames;
+    return nameMap[order] || (isF ? `${order} औं छोरी` : `${order} औं छोरा`);
+}
+
 // --- Admin Workflow (Details Restored) ---
 async function openAdminModal() {
     document.getElementById('admin-modal').style.display = 'block';
@@ -434,14 +451,38 @@ async function openAdminModal() {
         let senderPhone = d._submitter_phone ? ` (📞 ${d._submitter_phone})` : '';
         let senderEmail = d._submitter_email ? ` [${d._submitter_email}]` : '';
 
+        // 🌟 पिताको नाम पत्ता लगाउने लजिक
+        let parentName = "छैन";
+        let targetParentId = null;
+        if (p.change_type === 'UPDATE' || p.change_type === 'DELETE') {
+            let tData = familyData.find(x => x.id === p.target_member_id);
+            if (tData) targetParentId = tData.parentId;
+        } else if (p.change_type === 'CREATE') {
+            targetParentId = d.parent_id !== undefined ? d.parent_id : d.parentId;
+        }
+
+        if (targetParentId !== null && targetParentId !== undefined) {
+            let pObj = familyData.find(x => x.id === targetParentId);
+            if (pObj) {
+                parentName = pObj.id === 'DUMMY_ROOT' ? 'मूल पुर्खा' : (pObj.name || 'नाम नखुलेको');
+            }
+        }
+
         // 🌟 Modification Details (पुरानो र नयाँ विवरण)
         let detailsHtml = '';
         if (p.change_type === 'UPDATE') {
             const oldData = familyData.find(x => x.id === p.target_member_id);
             if (oldData) {
-                // Drag & Drop को लागि
+                // लक्षित सदस्य र पिताको नाम प्रस्ट देखाउने 
+                let baseTargetHtml = `<div style="margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px;"><strong>लक्षित सदस्य:</strong> <span style="color:#2980b9; font-weight:bold;">${oldData.name || d.name || '(नाम नखुलेको)'}</span> <span style="color:#7f8c8d; font-size:11px;">(पिता: ${parentName})</span></div>`;
+                detailsHtml += baseTargetHtml;
+
+                // Drag & Drop को लागि (अङ्कको सट्टा जेठो, माइलो देखाउने)
                 if (d.hierarchy_order !== undefined && d.hierarchy_order !== oldData.hierarchyOrder) {
-                    detailsHtml += `<div style="margin-bottom:4px;"><strong>क्रम परिवर्तन:</strong> ${oldData.hierarchyOrder} ➔ ${d.hierarchy_order}</div>`;
+                    let memberGender = oldData.gender || d.gender || 'M';
+                    let oldOrderName = getOrderName(oldData.hierarchyOrder, memberGender);
+                    let newOrderName = getOrderName(d.hierarchy_order, memberGender);
+                    detailsHtml += `<div style="margin-bottom:4px;"><strong>क्रम परिवर्तन:</strong> ${oldOrderName} ➔ ${newOrderName}</div>`;
                 }
                 
                 // अन्य विवरणहरू
@@ -450,12 +491,14 @@ async function openAdminModal() {
                 if (d.death_date !== undefined && d.death_date !== (oldData.deathDate||null)) detailsHtml += `<div style="margin-bottom:4px;"><strong>मृत्यु:</strong> <span style="text-decoration:line-through;color:#e74c3c;">${oldData.deathDate||'छैन'}</span> ➔ <span style="color:#27ae60;">${d.death_date||'छैन'}</span></div>`;
                 if (d.gender && d.gender !== oldData.gender) detailsHtml += `<div style="margin-bottom:4px;"><strong>लिङ्ग:</strong> <span style="text-decoration:line-through;color:#e74c3c;">${oldData.gender==='M'?'पुरुष':'महिला'}</span> ➔ <span style="color:#27ae60;">${d.gender==='M'?'पुरुष':'महिला'}</span></div>`;
                 
-                if (!detailsHtml) detailsHtml = `<div><strong>विवरण:</strong> अन्य संशोधन (माता/पिता/पति/पत्नी)</div>`;
+                if (detailsHtml === baseTargetHtml) {
+                    detailsHtml += `<div><strong>विवरण:</strong> अन्य संशोधन (माता/पिता/पति/पत्नी)</div>`;
+                }
             }
         } else if (p.change_type === 'CREATE') { 
-            detailsHtml = `<div><strong>नयाँ सदस्य:</strong> ${d.name || '(नाम नखुलेको)'}</div>`;
+            detailsHtml = `<div><strong>नयाँ सदस्य:</strong> <span style="color:#2980b9; font-weight:bold;">${d.name || '(नाम नखुलेको)'}</span> <span style="color:#7f8c8d; font-size:11px;">(पिता: ${parentName})</span></div>`;
         } else { 
-            detailsHtml = `<div><strong>हटाउने सदस्य:</strong> ${d.name || '(नाम नखुलेको)'}</div>`; 
+            detailsHtml = `<div><strong>हटाउने सदस्य:</strong> <span style="color:#e74c3c; font-weight:bold;">${d.name || '(नाम नखुलेको)'}</span> <span style="color:#7f8c8d; font-size:11px;">(पिता: ${parentName})</span></div>`; 
         }
         
         html += `<div style="border:1px solid #cbd5e1; padding:12px; margin-bottom:10px; border-radius:6px; background:#f8fafc;">
@@ -477,7 +520,7 @@ async function approveProposal(proposalId) {
     
     const propData = { ...proposal.proposed_data };
     
-    // 🌟 यहाँ सुधार गरिएको छ: नचाहिने सबै Meta डाटा र camelCase की (Key) हरू डाटाबेसमा पठाउनुअघि हटाउने
+    // 🌟 नचाहिने सबै Meta डाटा हटाउने
     delete propData._submitter_name; 
     delete propData._submitter_phone; 
     delete propData._submitter_email;
@@ -489,9 +532,15 @@ async function approveProposal(proposalId) {
     
     try {
         if (proposal.change_type === 'CREATE') {
+            // 🌟 अचुक समाधान: पुरानो डुप्लिकेट ID नपरोस् भनेर Fresh ID आफैँ बनाउने
+            const currentMax = familyData.length > 0 ? Math.max(...familyData.map(d => d.id)) : 0;
+            propData.id = currentMax + 1;
+            
             const { error } = await supabaseClient.from('members').insert([propData]);
             if (error) throw error;
         } else if (proposal.change_type === 'UPDATE') {
+            // 🌟 अपडेट गर्दा ID कोलम परिवर्तन गर्न खोज्दा इरर आउने हुँदा यसलाई उडाइदिने
+            delete propData.id;
             const { error } = await supabaseClient.from('members').update(propData).eq('id', proposal.target_member_id);
             if (error) throw error;
         } else if (proposal.change_type === 'DELETE') {
@@ -765,9 +814,15 @@ async function syncToServer() {
             death_date: d.deathDate || null
         }));
 
-        // Supabase को RPC फङ्सन कल गर्ने
-        const { error } = await supabaseClient.rpc('sync_database', { new_data: dbReadyData });
-        if (error) throw error;
+        // 🌟 अचुक समाधान: RPC को सट्टा सिधै JS बाट सुरक्षित Delete र Insert गर्ने
+        const { error: deleteError } = await supabaseClient.from('members').delete().neq('id', -1);
+        if (deleteError) throw deleteError;
+
+        // नयाँ डाटा इन्सर्ट गर्ने
+        if (dbReadyData.length > 0) {
+            const { error: insertError } = await supabaseClient.from('members').insert(dbReadyData);
+            if (insertError) throw insertError;
+        }
 
         alert("🎉 बधाई छ! डेटा सफलतापूर्वक लाइभ सर्भरमा रिस्टोर भयो।");
         loadDataFromSupabase(); // रिफ्रेस गरेर नयाँ डाटा देखाउने
