@@ -206,11 +206,15 @@ body {
     .main-header { flex-direction: column; text-align: center; gap: 8px; }
     .header-left, .header-center, .header-right { width: 100%; justify-content: center; }
     .search-container { max-width: 100%; }
-    .menu-bar { justify-content: flex-start; padding: 10px; overflow-x: auto; }
     
-    /* 🌟 Mobile Export Preview & Buttons Fix 🌟 */
-    #export-modal .modal-content { height: 95vh !important; padding: 15px; overflow-y: auto; }
-    .page-preview-box img { max-height: 50vh !important; } /* मोबाइलमा इमेजको उचाइ घटाएर बटनलाई ठाउँ दिने */
+    /* 🌟 Mobile Menu Fix: २ लाइनमा फिट गर्ने 🌟 */
+    .menu-bar { padding: 8px; }
+    .header-buttons-right { gap: 6px; }
+    .menu-btn, .toggle-label { font-size: 12px; padding: 5px 8px; flex: 1 1 calc(33% - 10px); text-align: center; } /* बटनहरू अलि साना बनाएर एडजस्ट गरिएको */
+    
+    /* 🌟 Mobile Export Preview Fix 🌟 */
+    #export-modal .modal-content { height: 85vh !important; padding: 12px; overflow-y: auto; margin-top: 10px; } /* उचाइ घटाइयो */
+    .page-preview-box img { max-height: 45vh !important; } /* इमेजको उचाइ अझै कम गरियो */
     #export-buttons-container { flex-wrap: wrap !important; white-space: normal !important; overflow-x: hidden; justify-content: space-between; }
-    .export-btn-action { flex: 1 1 calc(50% - 10px) !important; font-size: 12px; padding: 8px; margin-bottom: 5px; } /* बटनहरू २-२ वटा गरेर २ लाइनमा चिटिक्क बस्ने */
+    .export-btn-action { flex: 1 1 calc(50% - 10px) !important; font-size: 12px; padding: 8px; margin-bottom: 5px; }
 }
