@@ -27,20 +27,21 @@ body {
     flex: 1; 
     min-width: 250px; 
     display: flex; 
+    flex-direction: row; /* लोगो र टेक्स्टलाई सँगै एउटै लाइनमा राख्न */
     align-items: center; 
     justify-content: center; 
-    gap: 12px; 
+    gap: 10px; 
 }
 .header-logo { 
-    width: 56px; 
-    height: 56px; 
+    width: 44px; /* लोगोको साइज घटाएर चिटिक्क बनाइएको */
+    height: 44px; 
     object-fit: contain; 
     border-radius: 50%;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
-.header-center-text { text-align: left; }
-.header-center-text h1 { margin: 0; font-size: 22px; line-height: 1.2; }
-.header-center-text p { margin: 0; font-size: 12px; color: #d5e2f5; }
+.header-center-text { text-align: left; display: flex; flex-direction: column; justify-content: center; }
+.header-center-text h1 { margin: 0; font-size: 20px; line-height: 1.1; }
+.header-center-text p { margin: 0; font-size: 11px; color: #d5e2f5; }
 
 .header-right { flex: 1; min-width: 250px; display: flex; justify-content: flex-end; align-items: center; }
 
@@ -236,8 +237,8 @@ body {
 
     /* Mobile Header Logo Adjustment */
     .header-center { flex-direction: row; gap: 8px; justify-content: center; }
-    .header-logo { width: 44px; height: 44px; }
-    .header-center-text h1 { font-size: 18px; }
+    .header-logo { width: 36px; height: 36px; }
+    .header-center-text h1 { font-size: 17px; }
     
     /* 🌟 Mobile Export Preview Fix (उचाइ अझै घटाइएको) 🌟 */
     #export-modal .modal-content { height: 75vh !important; margin: 10vh auto !important; padding: 10px; }
