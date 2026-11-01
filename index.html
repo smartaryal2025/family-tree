@@ -15,11 +15,7 @@
     <!-- व्यवस्थित हेडर -->
     <header class="main-header">
         <div class="header-left">
-            <div class="search-container">
-                <input type="search" id="searchInput" name="search_member_box" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()" autocomplete="off" spellcheck="false" role="presentation">
-                <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
-                <div class="suggestions-box" id="searchSuggestions"></div>
-            </div>
+            <!-- सर्च बक्स यहाँबाट हटाएर तल चार्टमाथि सारिएको छ -->
         </div>
         
         <div class="header-center">
@@ -70,6 +66,16 @@
     <!-- Tree Viewport -->
     <div id="export-area">
         <h1 id="export-title" style="display:none; color:#183153; margin: 20px 0;">अर्याल वंशावली</h1>
+        
+        <!-- 🌟 Floating Search Box (वंशावली चार्टमाथि फिक्स्ड) 🌟 -->
+        <div class="floating-search" data-html2canvas-ignore>
+            <div class="search-container">
+                <input type="text" id="searchInput" placeholder="🔍 नाम खोज्नुहोस्..." oninput="handleSearchInput()" onfocus="handleSearchInput()" autocomplete="new-password" spellcheck="false">
+                <span class="search-clear" id="searchClear" onclick="clearSearch()">✕</span>
+                <div class="suggestions-box" id="searchSuggestions"></div>
+            </div>
+        </div>
+
         <div id="tree-viewport">
             <div id="zoom-layer">
                 <svg id="lines-svg" xmlns="http://www.w3.org/2000/svg"></svg>
