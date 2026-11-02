@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Allow: /index.html
+Allow: /about.html
+Allow: /faq.html
+Allow: /privacy.html
+Allow: /disclaimer.html
+Allow: /service-worker.js
+Allow: /manifest.json
+Disallow: /admin/
+Disallow: /private/
+
+Sitemap: https://family-tree.kishoraryal.com.np/sitemap.xml

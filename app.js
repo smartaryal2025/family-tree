@@ -253,14 +253,14 @@ async function loadDataFromSupabase() {
                 spouses: d.spouses || [], hierarchyOrder: d.hierarchy_order || 99, birthDate: d.birth_date, deathDate: d.death_date
             }));
             nextId = Math.max(...familyData.map(d => d.id), 0) + 1;
-            localStorage.setItem('aryalFamilyTreeDataV1_3', JSON.stringify(familyData));
+            localStorage.setItem('aryalFamilyTreeData', JSON.stringify(familyData));
         } else {
-            const savedData = localStorage.getItem('aryalFamilyTreeDataV1_3');
+            const savedData = localStorage.getItem('aryalFamilyTreeData');
             familyData = savedData ? (JSON.parse(savedData) || []) : [];
         }
     } catch (err) {
         console.error("Supabase Error:", err);
-        const savedData = localStorage.getItem('aryalFamilyTreeDataV1_3');
+        const savedData = localStorage.getItem('aryalFamilyTreeData');
         familyData = savedData ? (JSON.parse(savedData) || []) : [];
     }
     
@@ -618,7 +618,7 @@ async function clearNotifications() {
     }
 }
 
-// --- Search Logic (Green Highlight Restored) ---
+// --- Search Logic (Green Highlight & Keyboard Nav) ---
 const dev2romMap = {
     'क':'k','ख':'kh','ग':'g','घ':'gh','ङ':'ng','च':'ch','छ':'chh','ज':'j','झ':'jh','ञ':'ny',
     'ट':'t','ठ':'th','ड':'d','ढ':'dh','ण':'n','त':'t','थ':'th','द':'d','ध':'dh','न':'n',
@@ -630,11 +630,7 @@ const dev2romMap = {
 
 function normalizeForSearch(text) {
     if(!text) return "";
-    
-    // १. सबै प्रकारका अदृश्य क्यारेक्टर (ZWJ, ZWNJ, Zero-width spaces) हटाउने
     let t = text.replace(/[\u200B-\u200F\uFEFF]/g, '');
-    
-    // २. हलन्त + र (्र) को ग्यारेन्टी म्यापिङ (यसले pra, kra, khra आदि सबैलाई समेट्छ)
     const conjuncts = {
         'प्र':'pr', 'क्र':'kr', 'ख्र':'khr', 'ग्र':'gr', 'घ्र':'ghr', 
         'च्र':'chr', 'छ्र':'chhr', 'ज्र':'jr', 'झ्र':'jhr', 'ट्र':'tr', 
@@ -643,33 +639,27 @@ function normalizeForSearch(text) {
         'भ्र':'bhr', 'म्र':'mr', 'व्र':'vr', 'स्र':'sr', 'ह्र':'hr',
         'क्ष':'ksh', 'ज्ञ':'jn', 'श्र':'shr', 'ॐ':'om'
     };
-    
-    for (let key in conjuncts) {
-        t = t.split(key).join(conjuncts[key]);
-    }
-    
-    // ३. बाँकी अक्षरहरूलाई character-by-character म्याप गर्ने
+    for (let key in conjuncts) { t = t.split(key).join(conjuncts[key]); }
     let mapped = t.split('').map(char => dev2romMap[char] || char).join('').toLowerCase();
-    
-    // ४. स्वर वर्णहरू (Vowels) हटाएर Fuzzy बनाउने
     return mapped.replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/[vb]/g, 'w').replace(/a/g, ''); 
 }
+
+let currentSearchFocus = -1; // 🌟 कीबोर्ड नेभिगेसनको लागि ट्र्याकर
 
 function handleSearchInput() {
     const input = document.getElementById('searchInput');
     const clearBtn = document.getElementById('searchClear');
     const suggestionsBox = document.getElementById('searchSuggestions');
     
-    // युजरले टाइप गरेको टेक्स्ट (Search Query) बाट पनि अदृश्य क्यारेक्टर हटाउने
     const rawQuery = input.value.trim().toLowerCase().replace(/[\u200B-\u200F\uFEFF]/g, '');
-    
     const fuzzyQuery = rawQuery.replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/[vb]/g, 'w').replace(/a/g, ''); 
+    
+    currentSearchFocus = -1; // नयाँ टाइप गर्दा फोकस रिसेट गर्ने
     
     if (rawQuery.length > 0) { clearBtn.style.display = 'block'; } 
     else { clearBtn.style.display = 'none'; suggestionsBox.style.display = 'none'; return; }
 
     const results = familyData.filter(d => d.id !== 'DUMMY_ROOT' && d.name).filter(d => {
-        // डाटाबेसमा भएको नामबाट पनि देवनागरी सर्चअघि अदृश्य क्यारेक्टर हटाउने
         const nameDev = d.name.toLowerCase().replace(/[\u200B-\u200F\uFEFF]/g, '');
         const nameRom = normalizeForSearch(d.name);
         return nameDev.includes(rawQuery) || nameRom.includes(fuzzyQuery);
@@ -683,7 +673,7 @@ function handleSearchInput() {
         }).join('');
         suggestionsBox.style.display = 'block';
     } else {
-        suggestionsBox.innerHTML = `<div class="suggestion-item" style="color:#7f8c8d;">कुनै नाम भेटिएन</div>`;
+        suggestionsBox.innerHTML = `<div class="suggestion-item" style="color:#7f8c8d; pointer-events:none;">कुनै नाम भेटिएन</div>`;
         suggestionsBox.style.display = 'block';
     }
 }
@@ -694,34 +684,25 @@ function clearSearch() {
     document.getElementById('searchSuggestions').style.display = 'none'; 
     d3.selectAll('.node-box').classed('search-highlight', false); 
     clearTimeout(searchTimeout); 
+    currentSearchFocus = -1;
 }
 
-// 🌟 Green Highlight Feature Restored 🌟
-// 🌟 Green Highlight Feature Restored
 function focusSearchNode(id, name) {
     document.getElementById('searchInput').value = name; 
     document.getElementById('searchSuggestions').style.display = 'none'; 
-    expandAll(); // यदि नोड लुकेको छ भने सबै खोल्ने
+    expandAll(); 
     
-    // थोरै समय पर्खेर मात्र फोकस गर्ने, जसले गर्दा Animation देखिन्छ
     setTimeout(() => {
-        // पहिले सबै नोडको हाइलाइट हटाउने
-        if (typeof d3 !== 'undefined') {
-            d3.selectAll('.node-box').classed('search-highlight', false); 
-        }
-        
+        if (typeof d3 !== 'undefined') d3.selectAll('.node-box').classed('search-highlight', false); 
         let targetNode = null;
-        
         if (typeof d3 !== 'undefined') {
             d3.selectAll('.node-box').each(function(d) { 
                 if (d.data.id === id) { 
-                    d3.select(this).classed('search-highlight', true); // 🌟 Green Highlight Active
+                    d3.select(this).classed('search-highlight', true); 
                     targetNode = d; 
                 } 
             });
         }
-        
-        // क्यामेरा जुम गरेर फोकस गर्ने
         if (targetNode && typeof d3 !== 'undefined') { 
             const vpWidth = document.getElementById('tree-viewport').clientWidth; 
             const vpHeight = document.getElementById('tree-viewport').clientHeight; 
@@ -729,16 +710,29 @@ function focusSearchNode(id, name) {
             let target = d3.zoomIdentity.translate((vpWidth / 2) - (targetNode.x * scale), (vpHeight / 2) - (targetNode.y * scale)).scale(scale); 
             viewport.transition().duration(800).call(zoom.transform, target); 
         }
-        
-        // केही सेकेन्डपछि हाइलाइट आफैँ हट्ने
         clearTimeout(searchTimeout); 
         searchTimeout = setTimeout(() => {
-            if (typeof d3 !== 'undefined') {
-                d3.selectAll('.node-box').classed('search-highlight', false)
-            }
+            if (typeof d3 !== 'undefined') d3.selectAll('.node-box').classed('search-highlight', false);
         }, 4000);
-        
     }, 450); 
+}
+
+// 🌟 Keyboard Navigation Helper Functions 🌟
+function addActive(items) {
+    if (!items) return false;
+    removeActive(items);
+    if (currentSearchFocus >= items.length) currentSearchFocus = 0;
+    if (currentSearchFocus < 0) currentSearchFocus = (items.length - 1);
+    if (items[currentSearchFocus].innerHTML.includes('कुनै नाम भेटिएन')) return;
+    
+    items[currentSearchFocus].classList.add("active");
+    items[currentSearchFocus].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function removeActive(items) {
+    for (let i = 0; i < items.length; i++) {
+        items[i].classList.remove("active");
+    }
 }
 
 // --- Esc Key & Modals Close Logic ---
@@ -782,12 +776,12 @@ function importJSON(event) {
     reader.onload = function(e) {
         try {
             const importedData = JSON.parse(e.target.result);
-            if (Array.isArray(importedData)) { familyData = importedData; nextId = Math.max(...familyData.map(d => d.id)) + 1; localStorage.setItem('aryalFamilyTreeDataV1_3', JSON.stringify(familyData)); renderTree(true); setTimeout(() => alert("ब्याकअप लोड भयो!"), 100); }
+            if (Array.isArray(importedData)) { familyData = importedData; nextId = Math.max(...familyData.map(d => d.id)) + 1; localStorage.setItem('aryalFamilyTreeData', JSON.stringify(familyData)); renderTree(true); setTimeout(() => alert("ब्याकअप लोड भयो!"), 100); }
         } catch(err) { alert("Invalid JSON file."); }
     }; reader.readAsText(file); event.target.value = ''; 
 }
 function exportDataJS() { const dataStr = "const defaultFamilyData = " + JSON.stringify(familyData, null, 4) + ";"; const blob = new Blob([dataStr], { type: "application/javascript" }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = "data.js"; a.click(); URL.revokeObjectURL(url); }
-function factoryReset() { if(confirm("सबै डेटा मेटेर सुरुको अवस्थामा लैजान चाहनुहुन्छ?")) { localStorage.removeItem('aryalFamilyTreeDataV1_3'); location.reload(); } }
+function factoryReset() { if(confirm("सबै डेटा मेटेर सुरुको अवस्थामा लैजान चाहनुहुन्छ?")) { localStorage.removeItem('aryalFamilyTreeData'); location.reload(); } }
 
 // --- Server Sync (Admin Only Data Recovery) ---
 async function syncToServer() {
@@ -1166,5 +1160,35 @@ async function downloadMultiPagePDF() {
 }
 async function executeNativePrint() { closeExportModal(); const printContainer = document.getElementById('print-container'); printContainer.innerHTML = "<h2 style='text-align:center;'>Preparing Print...</h2>"; const canvas = await createExportCanvas(2); const imgData = canvas.toDataURL('image/png', 1.0); printContainer.innerHTML = `<div class="single-print-page"><img src="${imgData}"></div>`; setTimeout(() => { window.print(); setTimeout(() => { printContainer.innerHTML = ""; }, 1000); }, 500); }
 
-// --- Initialization ---
-document.addEventListener('DOMContentLoaded', () => { loadDataFromSupabase(); });
+// --- Initialization & Search Key Navigation ---
+document.addEventListener('DOMContentLoaded', () => { 
+    loadDataFromSupabase(); 
+    
+    // 🌟 Search Keyboard Navigation Events 🌟
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keydown', function(e) {
+            let suggestionBox = document.getElementById('searchSuggestions');
+            if (!suggestionBox || suggestionBox.style.display === 'none') return;
+            
+            let items = suggestionBox.getElementsByClassName('suggestion-item');
+            if (!items || items.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                currentSearchFocus++;
+                addActive(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault(); // कर्सर सुरुमा जानबाट रोक्न
+                currentSearchFocus--;
+                addActive(items);
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault(); 
+                if (currentSearchFocus > -1) {
+                    if (items[currentSearchFocus]) items[currentSearchFocus].click();
+                } else if (items.length > 0 && !items[0].innerHTML.includes('कुनै नाम भेटिएन')) {
+                    items[0].click(); // फोकस नभएको बेला Enter वा Tab थिच्दा पहिलो अप्सन छानिने
+                }
+            }
+        });
+    }
+});
