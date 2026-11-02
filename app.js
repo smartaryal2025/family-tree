@@ -1058,7 +1058,25 @@ function renderTree(isInitialLoadOrReset = false) {
         .style("top", d => `${d.parent && d.parent.id !== 'DUMMY_ROOT' ? d.parent.y : d.y}px`);
         
     const mergedNodes = nodeEnter.merge(nodes);
-    mergedNodes.on("click", (e, d) => showDetails(d.data.id, e)).on("dblclick", (e, d) => { e.stopPropagation(); toggleCollapse(d.data.id); }).on("dragenter", (e, d) => dragEnterTarget(e, d.data.id)).on("dragover", dragOver).on("drop", (e, d) => dropNode(e, d.data.id))
+    mergedNodes
+        .on("click", function (e, d) {
+            e.stopPropagation();
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - (d.lastTapTime || 0);
+            
+            if (tapLength > 0 && tapLength < 400) {
+                // Double Tap (४०० मिलिसेकेन्डभित्र दुईपटक थिचेमा) - Collapse गर्ने
+                toggleCollapse(d.data.id);
+                d.lastTapTime = 0; // Reset
+            } else {
+                // Single Tap - Details देखाउने
+                showDetails(d.data.id, e);
+                d.lastTapTime = currentTime;
+            }
+        })
+        .on("dragenter", (e, d) => dragEnterTarget(e, d.data.id))
+        .on("dragover", dragOver)
+        .on("drop", (e, d) => dropNode(e, d.data.id))
         .html(d => {
             let spouseLabel = d.data.gender === 'M' ? "पत्नी: " : "पति: ";
             const hasChildren = familyData.some(c => c.parentId === d.data.id && c.id !== 'DUMMY_ROOT');

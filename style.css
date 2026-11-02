@@ -2,8 +2,11 @@
     box-sizing: border-box;
 }
 
+body, input, button, select, textarea {
+    font-family: "Noto Sans Devanagari", sans-serif;
+}
+
 body {
-    font-family: "Noto Sans Devanagari", "Mangal", sans-serif;
     background-color: #f4f6fa;
     color: #263449;
     margin: 0;
@@ -11,7 +14,6 @@ body {
     overflow-x: hidden;
 }
 
-/* 🌟 Header Layout (V1.4 Updated: Logo Left, Search Center) 🌟 */
 .main-header {
     display: flex;
     justify-content: space-between;
@@ -941,7 +943,7 @@ input[type="search"]::-webkit-search-results-decoration {
 /* Navigation & Submits */
 .floating-nav {
     position: fixed;
-    bottom: 25px;
+    bottom: 45px;
     right: 25px;
     display: flex;
     flex-direction: column;

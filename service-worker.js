@@ -1,5 +1,5 @@
 // Cache Version - भविष्यमा अपडेट गर्दा यो नाम मात्र परिवर्तन गर्ने (जस्तै: v1.4.1)
-const CACHE_NAME = 'aryal-family-tree-v1.4.0';
+const CACHE_NAME = 'aryal-family-tree-v1.4.1';
 
 // अफलाइनको लागि सुरक्षित राख्नुपर्ने मुख्य फाइलहरू
 const URLS_TO_CACHE = [
